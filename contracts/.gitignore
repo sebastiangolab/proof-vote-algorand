@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+!.env.example
+
+# Ignore compiled TEAL/bytecode (keep ARC-32/56 JSON only)
+artifacts/*.teal
+artifacts/*.bin
+artifacts/*Client.ts

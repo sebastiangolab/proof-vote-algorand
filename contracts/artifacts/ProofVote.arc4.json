@@ -1,0 +1,146 @@
+{
+  "name": "ProofVote",
+  "desc": "",
+  "methods": [
+    {
+      "name": "createApplication",
+      "desc": "Deploy the contract and set initial stake parameters.\nThe deployer becomes the permanent platformOwner.",
+      "args": [
+        {
+          "name": "defaultStake",
+          "type": "uint64",
+          "desc": "Default poll stake in µALGO (e.g. 1_000_000 = 1 ALGO)"
+        },
+        {
+          "name": "minStake",
+          "type": "uint64",
+          "desc": "Minimum allowed stake in µALGO"
+        },
+        {
+          "name": "maxStake",
+          "type": "uint64",
+          "desc": "Maximum allowed stake in µALGO"
+        },
+        {
+          "name": "defaultWithdrawWindow",
+          "type": "uint64",
+          "desc": "Default withdrawal window in seconds (e.g. 86400 = 1 day)"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "createVote",
+      "desc": "Create a new voting poll.\n\n\nThe caller must include a PayTxn in the same atomic group that covers\nthe vote box MBR (see VOTE_BOX_MBR in constants.ts).",
+      "args": [
+        {
+          "name": "startAt",
+          "type": "uint64",
+          "desc": "Unix timestamp when voting opens"
+        },
+        {
+          "name": "endAt",
+          "type": "uint64",
+          "desc": "Unix timestamp when voting closes (must be  startAt)"
+        },
+        {
+          "name": "optionCount",
+          "type": "uint64",
+          "desc": "Number of options (2–8 inclusive)"
+        },
+        {
+          "name": "stake",
+          "type": "uint64",
+          "desc": "Required stake per voter in µALGO"
+        },
+        {
+          "name": "withdrawWindow",
+          "type": "uint64",
+          "desc": "Seconds after endAt during which users may self-withdraw"
+        },
+        {
+          "name": "mbrPayment",
+          "type": "pay",
+          "desc": "PayTxn to contract for VOTE_BOX_MBR"
+        }
+      ],
+      "returns": {
+        "type": "uint64",
+        "desc": "Assigned poll ID (uint64, auto-incremented from 1)"
+      }
+    },
+    {
+      "name": "vote",
+      "desc": "Cast a vote on an active poll.\n\n\nMust be submitted in an atomic group with a PayTxn BEFORE this AppCall:\n  PayTxn amount = stake + USER_VOTE_BOX_MBR  (see constants.ts)\n\n\nThe PayTxn argument references the preceding group transaction automatically\nby the AVM framework — do not add a separate payment outside the ATC group.",
+      "args": [
+        {
+          "name": "voteId",
+          "type": "uint64",
+          "desc": "Poll ID to vote on"
+        },
+        {
+          "name": "choice",
+          "type": "uint64",
+          "desc": "Option index (0-based, must be  optionCount)"
+        },
+        {
+          "name": "payment",
+          "type": "pay",
+          "desc": "PayTxn with amount = stake + USER_VOTE_BOX_MBR, receiver = contract address"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "withdraw",
+      "desc": "Withdraw staked ALGO after a poll ends, within the withdrawal window.\nRefunds stakeLocked + USER_VOTE_BOX_MBR to the caller (see constants.ts).\nDeletes the user box to reclaim its MBR from the contract's minimum balance.",
+      "args": [
+        {
+          "name": "voteId",
+          "type": "uint64",
+          "desc": "Poll ID to withdraw from"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "updatePlatformOwner",
+      "desc": "Transfer platform ownership to a new address.\nOnly callable by the current platformOwner.",
+      "args": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "desc": "Address that will become the new platform owner\n\n\n platformOwner only"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "sweepUser",
+      "desc": "Sweep unclaimed stake for a specific user after the withdrawal deadline.\nOnly callable by platformOwner. Sends stake + MBR to platformOwner.",
+      "args": [
+        {
+          "name": "voteId",
+          "type": "uint64",
+          "desc": "Poll ID to sweep from"
+        },
+        {
+          "name": "user",
+          "type": "address",
+          "desc": "Wallet address of the voter whose stake is being swept\n\n\n platformOwner only"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    }
+  ]
+}
