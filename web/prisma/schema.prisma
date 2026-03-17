@@ -1,0 +1,24 @@
+// Prisma schema for ProofVote
+// learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model VoteMetadata {
+  id            String   @id @default(uuid())
+  appId         BigInt
+  voteId        BigInt   @unique
+  slug          String   @unique
+  title         String   @db.VarChar(100)
+  description   String?  @db.Text
+  optionLabels  Json
+  creatorWallet String
+  createdAt     DateTime @default(now())
+}
