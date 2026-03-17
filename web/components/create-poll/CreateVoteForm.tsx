@@ -229,7 +229,7 @@ export function CreateVoteForm() {
             </button>
           )}
 
-          <FieldError message={errors.options?.message} />
+          <FieldError message={errors.options?.root?.message ?? errors.options?.message} />
         </div>
 
         {/* ── Schedule ───────────────────────────────────────────────────── */}

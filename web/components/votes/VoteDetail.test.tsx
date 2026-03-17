@@ -13,10 +13,14 @@ jest.mock("@txnlab/use-wallet-react", () => ({
 
 const mockGetVoteState = jest.fn<Promise<VoteState | null>, [bigint]>();
 const mockGetUserState = jest.fn();
+const mockFetchAppConfig = jest.fn().mockResolvedValue({ platformOwner: "PLATFORM0000000000000000000000000000000000000000000000000" });
 
 jest.mock("@/lib/algorand", () => ({
   fetchVoteState: (...args: Parameters<typeof mockGetVoteState>) => mockGetVoteState(...args),
   fetchUserVoteState: (...args: Parameters<typeof mockGetUserState>) => mockGetUserState(...args),
+  fetchAppConfig: (...args: unknown[]) => mockFetchAppConfig(...args),
+  MICRO_ALGO: 1_000_000,
+  VOTE_TX_FEE: 2000n,
 }));
 
 // ─── Mock VoteForm ────────────────────────────────────────────────────────────

@@ -154,24 +154,22 @@ describe("decodeUserVoteState", () => {
     stakeLocked: bigint;
     withdrawn: boolean;
   }): Uint8Array {
-    const buf = new Uint8Array(18);
+    const buf = new Uint8Array(17);
     const view = new DataView(buf.buffer);
-    // offset 0: voted (1 byte)
-    buf[0] = params.voted ? 1 : 0;
+    // offset 0: ARC-4 packed bools — voted=bit7 (0x80), withdrawn=bit6 (0x40)
+    buf[0] = (params.voted ? 0x80 : 0) | (params.withdrawn ? 0x40 : 0);
     // offset 1: choice (8 bytes)
     view.setBigUint64(1, params.choice);
     // offset 9: stakeLocked (8 bytes)
     view.setBigUint64(9, params.stakeLocked);
-    // offset 17: withdrawn (1 byte)
-    buf[17] = params.withdrawn ? 1 : 0;
     return buf;
   }
 
-  it("throws if bytes length is not 18", () => {
-    expect(() => decodeUserVoteState(new Uint8Array(10))).toThrow("18");
+  it("throws if bytes length is not 17", () => {
+    expect(() => decodeUserVoteState(new Uint8Array(10))).toThrow("17");
   });
 
-  it("decodes voted=true when byte 0 is non-zero", () => {
+  it("decodes voted=true when bit 7 of byte 0 is set", () => {
     const bytes = buildUserStateBytes({
       voted: true,
       choice: 0n,
@@ -181,7 +179,7 @@ describe("decodeUserVoteState", () => {
     expect(decodeUserVoteState(bytes).voted).toBe(true);
   });
 
-  it("decodes voted=false when byte 0 is 0", () => {
+  it("decodes voted=false when bit 7 of byte 0 is clear", () => {
     const bytes = buildUserStateBytes({
       voted: false,
       choice: 0n,
@@ -211,7 +209,7 @@ describe("decodeUserVoteState", () => {
     expect(decodeUserVoteState(bytes).stakeLocked).toBe(1_026_100n);
   });
 
-  it("decodes withdrawn=true when byte 17 is non-zero", () => {
+  it("decodes withdrawn=true when bit 6 of byte 0 is set", () => {
     const bytes = buildUserStateBytes({
       voted: true,
       choice: 0n,
@@ -221,7 +219,7 @@ describe("decodeUserVoteState", () => {
     expect(decodeUserVoteState(bytes).withdrawn).toBe(true);
   });
 
-  it("decodes withdrawn=false when byte 17 is 0", () => {
+  it("decodes withdrawn=false when bit 6 of byte 0 is clear", () => {
     const bytes = buildUserStateBytes({
       voted: true,
       choice: 0n,
@@ -231,8 +229,8 @@ describe("decodeUserVoteState", () => {
     expect(decodeUserVoteState(bytes).withdrawn).toBe(false);
   });
 
-  it("voted and withdrawn are independent (non-packed bools)", () => {
-    // If bools were ARC-4 packed adjacent, they'd share a byte — verify they don't
+  it("voted and withdrawn are ARC-4 packed in byte 0 and decode independently", () => {
+    // voted=bit7, withdrawn=bit6 — setting one must not affect the other
     const bytes = buildUserStateBytes({
       voted: true,
       choice: 1n,

@@ -25,6 +25,8 @@ jest.mock("@/lib/contract-client", () => ({
 
 jest.mock("@/lib/algorand", () => ({
   getAlgodClient: jest.fn(() => ({})),
+  fetchAppConfig: jest.fn().mockResolvedValue({ platformOwner: "PLATFORM0000000000000000000000000000000000000000000000000" }),
+  MICRO_ALGO: 1_000_000,
 }));
 
 // ─── Mock signatures ──────────────────────────────────────────────────────────
@@ -76,7 +78,7 @@ describe("CreateVoteForm", () => {
     await user.click(screen.getByRole("button", { name: /create vote/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Title is required.")).toBeInTheDocument();
+      expect(screen.getByText("Title is required")).toBeInTheDocument();
     });
   });
 
