@@ -50,7 +50,9 @@ export function CreateVoteForm() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
 
   useEffect(() => {
-    fetchAppConfig().then(setAppConfig).catch(() => {});
+    fetchAppConfig()
+      .then(setAppConfig)
+      .catch(() => setSubmitError("Failed to load platform config. Please refresh."));
   }, []);
 
   const [submitError, setSubmitError] = useState<string | null>(null);

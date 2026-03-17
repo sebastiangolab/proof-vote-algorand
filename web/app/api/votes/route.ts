@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { CreateVoteMetadataSchema } from "@/lib/schemas";
 import { verifyVoteCreationSignature } from "@/lib/signatures";
-import { isPrismaUniqueError } from "@/helpers/apiHelpers";
+import { isPrismaUniqueError, serializeVoteRecord } from "@/helpers/apiHelpers";
 
 // Pagination size for GET /api/votes
 const PAGE_SIZE = 20;
@@ -46,8 +46,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const page = hasMore ? records.slice(0, PAGE_SIZE) : records;
   const nextCursor = hasMore ? page[page.length - 1].id : null;
 
-  // JSON.stringify doesn't handle BigInt — convert voteId to string
-  const votes = page.map((v) => ({ ...v, voteId: v.voteId.toString() }));
+  // JSON.stringify doesn't handle BigInt — convert BigInt fields to strings
+  const votes = page.map(serializeVoteRecord);
 
   return NextResponse.json({ votes, nextCursor });
 }
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // BigInt → string for JSON serialisation
-    return NextResponse.json({ ...created, voteId: created.voteId.toString() }, { status: 201 });
+    return NextResponse.json(serializeVoteRecord(created), { status: 201 });
   } catch (error) {
     // Prisma unique constraint violation
     if (isPrismaUniqueError(error)) {

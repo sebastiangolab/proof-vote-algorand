@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { serializeVoteRecord } from "@/helpers/apiHelpers";
 
 /**
  * GET /api/votes/[slug]
@@ -35,5 +36,5 @@ export async function GET(
   }
 
   // BigInt → string for JSON serialisation
-  return NextResponse.json({ ...vote, voteId: vote.voteId.toString() });
+  return NextResponse.json(serializeVoteRecord(vote));
 }

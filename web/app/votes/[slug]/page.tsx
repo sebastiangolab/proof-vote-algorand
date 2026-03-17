@@ -44,7 +44,12 @@ export default async function VoteDetailPage({ params }: PageProps) {
   if (!vote) notFound();
 
   // BigInt → string (JSON-safe and compatible with VoteDetail props)
-  const metadata = { ...vote, voteId: vote.voteId.toString(), appId: vote.appId.toString() };
+  const metadata = {
+    ...vote,
+    voteId: vote.voteId.toString(),
+    appId: vote.appId.toString(),
+    optionLabels: vote.optionLabels as string[],
+  };
 
   return (
     <PageLayout

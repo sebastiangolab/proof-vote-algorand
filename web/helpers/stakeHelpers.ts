@@ -13,13 +13,4 @@ export function shortAddr(addr: string) {
   return `${addr.slice(0, 8)}…${addr.slice(-4)}`;
 }
 
-// Format unix timestamp (in seconds) to human-readable date string
-export function formatDate(ts: bigint) {
-  return new Date(Number(ts) * 1000).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+export { formatDate } from "@/helpers/votesHelpers";

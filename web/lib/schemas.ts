@@ -9,7 +9,7 @@ const SLUG_REGEX = /^[a-z0-9-]+$/;
  */
 export const CreateVoteMetadataSchema = z.object({
   /** On-chain application ID (as string to avoid JSON BigInt issues) */
-  appId: z.string().min(1),
+  appId: z.string().regex(/^\d+$/, "appId must be a numeric string"),
   /** On-chain vote ID returned by createVote (numeric string) */
   voteId: z.string().regex(/^\d+$/, "voteId must be a numeric string"),
   /** URL-friendly identifier (3–60 lowercase alphanumeric + dashes) */

@@ -15,7 +15,7 @@ export type VoteMetadata = {
   slug: string;
   title: string;
   description?: string | null;
-  optionLabels: unknown;
+  optionLabels: string[];
   appId: string;
   creatorWallet: string;
 };
@@ -33,7 +33,7 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   const voteId = BigInt(metadata.voteId);
-  const options = (metadata.optionLabels as string[]) ?? [];
+  const options = metadata.optionLabels;
 
   // Load vote state and user state (if wallet connected)
   useEffect(() => {
