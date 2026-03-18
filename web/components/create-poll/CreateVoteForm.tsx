@@ -115,7 +115,7 @@ export function CreateVoteForm() {
       const voteId = String(result.methodResults[0].returnValue as bigint);
 
       // Sign the creation message to prove ownership of the creator wallet
-      const message = buildCreationMessage(voteId, slug);
+      const message = buildCreationMessage(appId, voteId, slug);
       const msgBase64 = Buffer.from(new TextEncoder().encode(message)).toString("base64");
       const signResult = await signData(msgBase64, { scope: ScopeType.AUTH, encoding: "base64" });
       const signatureBase64 = Buffer.from(signResult.signature).toString("base64");

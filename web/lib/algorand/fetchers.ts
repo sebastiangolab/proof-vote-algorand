@@ -72,13 +72,13 @@ export async function fetchAppConfig(): Promise<AppConfig> {
 
   const algod = getAlgodClient();
   const appInfo = await algod.getApplicationByID(Number(appId)).do();
-  const gs = appInfo.params.globalState ?? [];
+  const globalState = appInfo.params.globalState ?? [];
 
   function findEntry(keyName: string) {
     const keyBytes = new TextEncoder().encode(keyName);
-    return gs.find((e) => {
-      const k = e.key;
-      return k.length === keyBytes.length && keyBytes.every((b, i) => k[i] === b);
+    return globalState.find((stateEntry) => {
+      const entryKey = stateEntry.key;
+      return entryKey.length === keyBytes.length && keyBytes.every((byte, index) => entryKey[index] === byte);
     });
   }
 
@@ -101,8 +101,38 @@ export async function fetchAppConfig(): Promise<AppConfig> {
 }
 
 /**
+ * Fetches the current nextVoteId from the contract's global state.
+ * Used by buildCreateVoteAtc to pre-declare the vote box reference.
+ *
+ * In mock mode (APP_ID=0), returns 1n.
+ *
+ * @returns nextVoteId (bigint) — the ID that will be assigned to the next created poll
+ */
+export async function fetchNextVoteId(): Promise<bigint> {
+  const appId = process.env.NEXT_PUBLIC_APP_ID;
+
+  if (!appId) {
+    throw new Error("NEXT_PUBLIC_APP_ID is not set. Cannot fetch nextVoteId.");
+  }
+
+  if (appId === "0") return 1n;
+
+  const algod = getAlgodClient();
+  const appInfo = await algod.getApplicationByID(Number(appId)).do();
+  const globalState = appInfo.params.globalState ?? [];
+
+  const keyBytes = new TextEncoder().encode("nextVoteId");
+  const entry = globalState.find((stateEntry) => {
+    const entryKey = stateEntry.key;
+    return entryKey.length === keyBytes.length && keyBytes.every((byte, index) => entryKey[index] === byte);
+  });
+
+  return entry?.value?.uint ?? 1n;
+}
+
+/**
  * Fetches and decodes the VoteState from the Algorand box.
- * 
+ *
  * @param voteId - Vote ID (bigint)
  * @returns Decoded VoteState, or null if the box does not exist
  */

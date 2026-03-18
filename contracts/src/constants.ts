@@ -60,3 +60,10 @@ export const USER_VOTE_STAKE_LOCKED_OFFSET = 9
 //  USER_VOTE_BOX_MBR: 2500 + 400 × (41 + 17) = 25,700 µALGO
 //  Read formula above for details on how this is calculated.
 export const USER_VOTE_BOX_MBR = 25700
+
+// ─── Withdrawal window ────────────────────────────────────────────────────────
+
+//  Minimum allowed withdrawal window in seconds (1 day).
+//  Prevents poll creators from setting withdrawWindow=0 which would make stakes
+//  immediately sweepable by the platform at vote end, trapping voters.
+export const MIN_WITHDRAW_WINDOW = 86400 // 1 day in seconds

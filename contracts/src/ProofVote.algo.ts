@@ -1,6 +1,6 @@
 import { Contract } from "@algorandfoundation/tealscript";
 import { VoteState, UserVoteKey, UserVoteState } from "./types";
-import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE } from "./constants";
+import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE, MIN_WITHDRAW_WINDOW } from "./constants";
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
 
@@ -92,6 +92,7 @@ class ProofVote extends Contract {
     assert(optionCount <= 8, "at most 8 options allowed");
     assert(stake >= this.minStake.value, "stake below minimum");
     assert(stake <= this.maxStake.value, "stake above maximum");
+    assert(withdrawWindow >= MIN_WITHDRAW_WINDOW, "withdraw window too short");
 
     // Verify caller has paid the vote box MBR 
     // see VOTE_BOX_MBR in constants.ts
@@ -195,8 +196,9 @@ class ProofVote extends Contract {
 
     const userVoteState = this.userVotes(userVoteKey).value;
     assert(userVoteState.voted, "did not vote");
-    // Note: if withdrawn=true the box would have been deleted on first withdrawal,
-    // so this check is defence-in-depth for any edge case.
+    // Note: `withdrawn` is never set to true — the box is always deleted on withdrawal/sweep.
+    // Box non-existence (checked above via .exists) is the actual double-withdrawal guard.
+    // This assert is a safety net in case the invariant is ever broken by a future change.
     assert(!userVoteState.withdrawn, "already withdrawn");
 
     const stakeLocked = userVoteState.stakeLocked;
@@ -222,7 +224,8 @@ class ProofVote extends Contract {
    */
   updatePlatformOwner(newOwner: Address): void {
     assert(this.txn.sender === this.platformOwner.value, "not platform owner");
-    
+    assert(newOwner !== globals.zeroAddress, "invalid owner address");
+
     this.platformOwner.value = newOwner;
   }
 

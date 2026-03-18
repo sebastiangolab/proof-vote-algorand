@@ -3,5 +3,5 @@ export { MICRO_ALGO, VOTE_TX_FEE, USER_VOTE_BOX_MBR } from "./constants";
 export { getAlgodClient } from "./client";
 export { generateVoteBoxName, generateUserVoteBoxName, parseUserVoteBoxName } from "./boxes";
 export { decodeVoteState, decodeUserVoteState } from "./decoders";
-export { fetchVoteState, fetchUserVoteState, fetchAppConfig } from "./fetchers";
+export { fetchVoteState, fetchUserVoteState, fetchAppConfig, fetchNextVoteId } from "./fetchers";
 export { findUserWithdrawable, findEligibleSweeps } from "./scanners";

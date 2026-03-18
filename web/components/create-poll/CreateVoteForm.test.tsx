@@ -33,7 +33,7 @@ jest.mock("@/lib/algorand", () => ({
 
 jest.mock("@/lib/signatures", () => ({
   buildCreationMessage: jest.fn(
-    () => "ProofVote: create metadata for voteId=1 slug=test"
+    () => "ProofVote: create metadata for appId=123456789 voteId=1 slug=test"
   ),
 }));
 

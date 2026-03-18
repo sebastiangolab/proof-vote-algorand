@@ -61,7 +61,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  *
  * Request body: CreateVoteMetadataInput (see lib/schemas.ts)
  * Response 201: created record (voteId as string)
- * Response 422: validation error
+ * Response 422: validation error or appId mismatch
  * Response 401: signature verification failed
  * Response 409: duplicate voteId or slug
  * Response 429: rate limit exceeded
@@ -99,8 +99,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const data = parsed.data;
 
-  // 3. Verify creator's signature over the canonical creation message
+  // 3. Verify appId matches the deployed contract (prevent registering metadata for foreign contracts)
+  if (data.appId !== process.env.NEXT_PUBLIC_APP_ID) {
+    return NextResponse.json({ error: "Invalid appId" }, { status: 422 });
+  }
+
+  // 4. Verify creator's signature over the canonical creation message
   const sigValid = verifyVoteCreationSignature(
+    data.appId,
     data.voteId,
     data.slug,
     data.creatorWallet,
@@ -111,7 +117,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
   }
 
-  // 4. Write to DB — catch unique constraint violation (P2002)
+  // 5. Write to DB — catch unique constraint violation (P2002)
   try {
     // signature is not persisted
     const { signature: _sig, ...dbData } = data;

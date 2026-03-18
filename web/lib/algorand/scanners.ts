@@ -37,32 +37,38 @@ export async function findUserWithdrawable(address: string): Promise<WithdrawTar
   const voteIds: bigint[] = [];
   for (const box of boxesResult.boxes) {
     const name = new Uint8Array(box.name);
-    
+
     if (name.length === 9 && name[0] === 0x76) {
       const view = new DataView(name.buffer, name.byteOffset);
       voteIds.push(view.getBigUint64(1));
     }
   }
 
-  // For each voteId, check if the user has a withdrawable stake
+  // Fetch all vote states in parallel, then filter to ended votes within the window
+  const voteStates = await Promise.all(voteIds.map((voteId) => fetchVoteState(voteId)));
+
+  // Filter to voteIds where voting has ended but withdraw deadline has not passed
+  const eligibleVoteIds = voteIds.filter((voteId, i) => {
+    const voteState = voteStates[i];
+
+    if (!voteState) return false; // vote state missing, skip
+    if (voteState.endAt >= now) return false;       // voting not yet ended
+    if (voteState.withdrawDeadline < now) return false; // window already closed
+
+    return true;
+  });
+
+  // For eligible votes, fetch user states in parallel
+  const userStates = await Promise.all(
+    eligibleVoteIds.map((voteId) => fetchUserVoteState(voteId, address))
+  );
+
   const targets: WithdrawTarget[] = [];
-  for (const voteId of voteIds) {
-    // Fetch the VoteState for this voteId
-    const voteState = await fetchVoteState(voteId);
+  for (let i = 0; i < eligibleVoteIds.length; i++) {
+    const voteId = eligibleVoteIds[i];
+    const voteState = voteStates[voteIds.indexOf(voteId)]!;
+    const userState = userStates[i];
 
-    // If the vote doesn't exist, skip
-    if (!voteState) continue;
-
-    // If the vote hasn't ended yet, skip
-    if (voteState.endAt >= now) continue;
-
-    // If the withdraw deadline has passed, skip
-    if (voteState.withdrawDeadline < now) continue; 
-
-    // Fetch the user's vote state for this voteId
-    const userState = await fetchUserVoteState(voteId, address);
-
-    // If the user hasn't voted, or has already withdrawn, skip
     if (!userState || !userState.voted || userState.withdrawn) continue;
 
     targets.push({
@@ -99,52 +105,52 @@ export async function findEligibleSweeps(): Promise<SweepTarget[]> {
   const algod = getAlgodClient();
   const now = BigInt(Math.floor(Date.now() / 1000));
 
-  // Cache of VoteState per voteId to avoid redundant fetches
-  const voteCache = new Map<bigint, VoteState | null>();
-
   const boxesResult = await algod.getApplicationBoxes(appId).do();
-  const targets: SweepTarget[] = [];
 
-  // Iterate over all boxes, looking for user vote boxes (those that can be parsed by parseUserVoteBoxName)
-  // For each user vote box, check if the vote ended and the withdraw deadline passed
-  // then check if the user's stake is eligible to be swept
-  for (const box of boxesResult.boxes) {
-    const parsed = parseUserVoteBoxName(new Uint8Array(box.name));
+  // Parse all user vote box names upfront, skip 'v' vote boxes
+  const userBoxes = boxesResult.boxes
+    .map((box) => parseUserVoteBoxName(new Uint8Array(box.name)))
+    .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null);
 
-    if (!parsed) continue; // skip 'v' vote boxes
+  // Fetch all unique vote states in parallel
+  const uniqueVoteIds = [...new Set(userBoxes.map((b) => b.voteId))];
 
-    const { voteId, address } = parsed;
+  // Fetch all vote states in parallel and cache them in a Map for quick lookup
+  const voteStateResults = await Promise.all(
+    uniqueVoteIds.map((voteId) => fetchVoteState(voteId))
+  );
 
-    // Fetch and cache the VoteState for this voteId
-    if (!voteCache.has(voteId)) {
-      const vs = await fetchVoteState(voteId);
-      voteCache.set(voteId, vs);
-    }
+  // Create a Map of voteId to VoteState (or null if not found) for quick access
+  const voteCache = new Map<bigint, VoteState | null>(
+    uniqueVoteIds.map((voteId, i) => [voteId, voteStateResults[i]])
+  );
 
-    // Get the cached VoteState
+  // Filter to user boxes where the vote's withdrawal deadline has passed
+  const eligibleBoxes = userBoxes.filter(({ voteId }) => {
     const voteState = voteCache.get(voteId);
+    return voteState != null && voteState.withdrawDeadline < now;
+  });
 
-    // If the vote doesn't exist, skip
-    if (!voteState) continue;
+  // Fetch all eligible user box values in parallel
+  const userBoxValues = await Promise.all(
+    eligibleBoxes.map(({ voteId, address }) =>
+      algod
+        .getApplicationBoxByName(appId, generateUserVoteBoxName(voteId, address))
+        .do()
+        .catch(() => null)
+    )
+  );
 
-    // If the vote hasn't ended yet, or if the withdraw deadline hasn't passed, skip
-    if (voteState.withdrawDeadline >= now) continue;
+  // Decode and filter to voted=true, withdrawn=false
+  const targets: SweepTarget[] = [];
+  for (let i = 0; i < eligibleBoxes.length; i++) {
+    const boxResult = userBoxValues[i];
+    if (!boxResult) continue;
 
-    // Fetch the user's vote state for this voteId
-    const userBoxResult = await algod
-      .getApplicationBoxByName(appId, generateUserVoteBoxName(voteId, address))
-      .do()
-      .catch(() => null);
-
-    // If the user box doesn't exist, skip
-    if (!userBoxResult) continue;
-
-    // Decode the user vote state from the box value
-    const userState = decodeUserVoteState(new Uint8Array(userBoxResult.value));
-
-    // If the user hasn't voted, or has already withdrawn, skip
+    const userState = decodeUserVoteState(new Uint8Array(boxResult.value));
     if (!userState.voted || userState.withdrawn) continue;
 
+    const { voteId, address } = eligibleBoxes[i];
     targets.push({ voteId, userAddress: address, stake: userState.stakeLocked });
   }
 

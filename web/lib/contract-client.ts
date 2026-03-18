@@ -7,11 +7,11 @@
  */
 
 import algosdk from "algosdk";
-import { getAlgodClient, generateVoteBoxName, generateUserVoteBoxName, type SweepTarget } from "./algorand";
+import { getAlgodClient, generateVoteBoxName, generateUserVoteBoxName, fetchNextVoteId, type SweepTarget } from "./algorand";
 import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "./algorand/constants";
+import arc4 from "../../contracts/artifacts/ProofVote.arc4.json";
 
 // Load ABI from compiled artifacts (relative to project root at runtime)
-const arc4 = require("../../contracts/artifacts/ProofVote.arc4.json");
 const contract = new algosdk.ABIContract(arc4);
 
 function getAppId(): number {
@@ -48,7 +48,12 @@ export async function buildCreateVoteAtc(params: {
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+
+  // Fetch nextVoteId and suggested params concurrently
+  const [txnParams, nextVoteId] = await Promise.all([
+    algod.getTransactionParams().do(),
+    fetchNextVoteId(),
+  ]);
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -58,7 +63,7 @@ export async function buildCreateVoteAtc(params: {
     sender: params.sender,
     receiver: algosdk.getApplicationAddress(appId),
     amount: VOTE_BOX_MBR,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
   });
 
   atc.addMethodCall({
@@ -74,11 +79,11 @@ export async function buildCreateVoteAtc(params: {
       { txn: mbrPayment, signer: params.signer }, // pay type arg
     ],
     sender: params.sender,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
     signer: params.signer,
-    // No boxes needed for createVote
-    // the contract creates the vote box on-chain using inner transactions
-    boxes: [],
+    // The contract writes to the vote box in this transaction — must declare the box ref.
+    // nextVoteId is the ID that will be assigned (auto-incremented on the contract side).
+    boxes: [{ appIndex: appId, name: generateVoteBoxName(nextVoteId) }],
   });
 
   return atc;
@@ -107,7 +112,7 @@ export async function buildVoteAtc(params: {
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+  const txnParams = await algod.getTransactionParams().do();
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -118,7 +123,7 @@ export async function buildVoteAtc(params: {
     sender: params.sender,
     receiver: algosdk.getApplicationAddress(appId),
     amount: paymentAmount,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
   });
 
   atc.addMethodCall({
@@ -131,7 +136,7 @@ export async function buildVoteAtc(params: {
       { txn: payTxn, signer: params.signer }, // pay type arg
     ],
     sender: params.sender,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read) — prefix 'v' + voteId
@@ -162,7 +167,7 @@ export async function buildWithdrawAtc(params: {
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+  const txnParams = await algod.getTransactionParams().do();
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -171,7 +176,7 @@ export async function buildWithdrawAtc(params: {
     method: contract.getMethodByName("withdraw"),
     methodArgs: [params.voteId],
     sender: params.sender,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read)
@@ -204,7 +209,7 @@ export async function buildBatchWithdrawAtc(params: {
 
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+  const txnParams = await algod.getTransactionParams().do();
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -214,7 +219,7 @@ export async function buildBatchWithdrawAtc(params: {
       method: contract.getMethodByName("withdraw"),
       methodArgs: [voteId],
       sender: params.sender,
-      suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+      suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
       signer: params.signer,
       boxes: [
         { appIndex: appId, name: generateVoteBoxName(voteId) },
@@ -246,7 +251,7 @@ export async function buildSweepUserAtc(params: {
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+  const txnParams = await algod.getTransactionParams().do();
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -255,7 +260,7 @@ export async function buildSweepUserAtc(params: {
     method: contract.getMethodByName("sweepUser"),
     methodArgs: [params.voteId, params.userAddress],
     sender: params.sender,
-    suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read sweepTo address)
@@ -290,7 +295,7 @@ export async function buildBatchSweepAtc(params: {
 
   const algod = getAlgodClient();
   const appId = getAppId();
-  const sp = await algod.getTransactionParams().do();
+  const txnParams = await algod.getTransactionParams().do();
 
   const atc = new algosdk.AtomicTransactionComposer();
 
@@ -300,7 +305,7 @@ export async function buildBatchSweepAtc(params: {
       method: contract.getMethodByName("sweepUser"),
       methodArgs: [target.voteId, target.userAddress],
       sender: params.sender,
-      suggestedParams: { ...sp, fee: 1000n, flatFee: true },
+      suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
       signer: params.signer,
       boxes: [
         { appIndex: appId, name: generateVoteBoxName(target.voteId) },

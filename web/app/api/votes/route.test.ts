@@ -61,6 +61,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   _store.clear();
   mockVerify.mockReturnValue(true);
+  // Match VALID_BODY.appId so the appId check passes in happy-path tests
+  process.env.NEXT_PUBLIC_APP_ID = "123456789";
+});
+
+afterEach(() => {
+  delete process.env.NEXT_PUBLIC_APP_ID;
 });
 
 // ─── GET /api/votes ───────────────────────────────────────────────────────────
@@ -183,6 +189,20 @@ describe("POST /api/votes — validation errors", () => {
   it("returns 422 when optionLabels has only 1 item", async () => {
     const response = await POST(makeRequest({ ...VALID_BODY, optionLabels: ["Only"] }));
     expect(response.status).toBe(422);
+  });
+});
+
+// ─── POST /api/votes — appId validation ──────────────────────────────────────
+
+describe("POST /api/votes — appId validation", () => {
+  it("returns 422 when appId does not match NEXT_PUBLIC_APP_ID", async () => {
+    const response = await POST(makeRequest({ ...VALID_BODY, appId: "999999999" }));
+    expect(response.status).toBe(422);
+  });
+
+  it("does not call prisma.create when appId mismatches", async () => {
+    await POST(makeRequest({ ...VALID_BODY, appId: "0" }));
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });
 
