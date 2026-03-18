@@ -91,8 +91,8 @@ For developers new to blockchain or the Algorand ecosystem:
 | **TEAL** | Transaction Execution Approval Language — Algorand's smart contract language (low-level, assembly-like). |
 | **TEALScript** | TypeScript-to-TEAL compiler. Write contracts in TypeScript, compile to TEAL. Used in this project. |
 | **AVM** | Algorand Virtual Machine — executes TEAL bytecode on every node simultaneously. |
-| **ARC-4** | Algorand standard for encoding data structures to binary (like JSON, but compact and typed). |
-| **ABI** | Application Binary Interface — defines how to call smart contract methods and decode return values. |
+| **ABI** | A JSON file generated at contract build time that describes its methods — what to call and with which arguments. |
+| **ARC-4** | Algorand standard that defines how to encode arguments into bytes when calling a contract. |
 | **Box storage** | Named on-chain key-value slots in Algorand contracts. Persistent between transactions; each box costs a small MBR deposit. |
 | **MBR** | Minimum Balance Requirement — ALGO locked when creating an account or a storage box. Acts like a refundable storage deposit; returned when the box is deleted. |
 | **Escrow** | A smart contract that holds funds on behalf of participants until predefined conditions are met. ProofVote's contract acts as an escrow for voter stakes. |
@@ -245,6 +245,37 @@ After the withdrawal deadline, the platform owner may sweep unclaimed stakes.
 
 The contract is written in [TEALScript](https://github.com/algorandfoundation/tealscript) (TypeScript that compiles to Algorand bytecode) and lives at [contracts/src/ProofVote.algo.ts](contracts/src/ProofVote.algo.ts).
 
+### What does a TEALScript contract look like?
+
+```typescript
+import { Contract } from '@algorandfoundation/tealscript';
+
+// Every TEALScript contract is a TypeScript class extending Contract.
+// It compiles to TEAL bytecode that runs on the Algorand Virtual Machine.
+class Counter extends Contract {
+  // Global state — stored on-chain, persists between transactions.
+  // Reserving space costs a small ALGO deposit (MBR).
+  count = GlobalStateKey<uint64>();
+
+  // Called once when the contract is deployed.
+  createApplication(): void {
+    this.count.value = 0;
+  }
+
+  // A public method — anyone can call it by sending a transaction to this contract.
+  increment(): void {
+    this.count.value = this.count.value + 1;
+  }
+
+  // assert() rejects the entire transaction if the condition is false.
+  // No partial execution — either everything succeeds or nothing does.
+  incrementBy(amount: uint64): void {
+    assert(amount > 0, 'amount must be positive');
+    this.count.value = this.count.value + amount;
+  }
+}
+```
+
 ### Global state — the contract's settings
 
 When the contract is deployed, six values are stored permanently on-chain:
@@ -271,7 +302,7 @@ Creating a box requires a small deposit (**MBR** — Minimum Balance Requirement
 **Why box storage and not local state (the older approach in Algorand)?**
 Local state is stored inside each voter's own account record on-chain. Before interacting with the contract, every user would have to send a separate opt-in transaction to explicitly reserve that space in their account. Box storage works the other way around — data lives in the contract's account, keyed by arbitrary bytes (e.g. `voteId + walletAddress`). No per-user setup is needed: any wallet can vote in a single step.
 
-### Contract methods
+### Contract methods in app
 
 | Method | Caller | Description |
 |--------|--------|-------------|
