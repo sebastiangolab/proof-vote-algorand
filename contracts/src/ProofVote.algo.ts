@@ -1,6 +1,6 @@
 import { Contract } from "@algorandfoundation/tealscript";
 import { VoteState, UserVoteKey, UserVoteState } from "./types";
-import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE, MIN_WITHDRAW_WINDOW } from "./constants";
+import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE, MAX_WITHDRAW_WINDOW } from "./constants";
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,9 @@ class ProofVote extends Contract {
 
   /** Default withdrawal window in seconds; suggested value for createVote */
   defaultWithdrawWindow = GlobalStateKey<uint64>();
+
+  /** Minimum allowed withdrawal window in seconds */
+  minWithdrawWindow = GlobalStateKey<uint64>();
 
   /** Auto-incrementing poll ID counter; first poll gets ID 1 */
   nextVoteId = GlobalStateKey<uint64>();
@@ -49,18 +52,21 @@ class ProofVote extends Contract {
    * @param minStake              - Minimum allowed stake in µALGO
    * @param maxStake              - Maximum allowed stake in µALGO
    * @param defaultWithdrawWindow - Default withdrawal window in seconds (e.g. 86400 = 1 day)
+   * @param minWithdrawWindow     - Minimum allowed withdrawal window in seconds (e.g. 86400 = 1 day; use 1 in tests)
    */
   createApplication(
     defaultStake: uint64,
     minStake: uint64,
     maxStake: uint64,
-    defaultWithdrawWindow: uint64
+    defaultWithdrawWindow: uint64,
+    minWithdrawWindow: uint64
   ): void {
     this.platformOwner.value = this.txn.sender;
     this.defaultStake.value = defaultStake;
     this.minStake.value = minStake;
     this.maxStake.value = maxStake;
     this.defaultWithdrawWindow.value = defaultWithdrawWindow;
+    this.minWithdrawWindow.value = minWithdrawWindow;
     // Vote IDs start at 1 so that 0 can serve as a sentinel "unset" value
     this.nextVoteId.value = 1;
   }
@@ -92,7 +98,8 @@ class ProofVote extends Contract {
     assert(optionCount <= 8, "at most 8 options allowed");
     assert(stake >= this.minStake.value, "stake below minimum");
     assert(stake <= this.maxStake.value, "stake above maximum");
-    assert(withdrawWindow >= MIN_WITHDRAW_WINDOW, "withdraw window too short");
+    assert(withdrawWindow >= this.minWithdrawWindow.value, "withdraw window too short");
+    assert(withdrawWindow <= MAX_WITHDRAW_WINDOW, "withdraw window too long");
 
     // Verify caller has paid the vote box MBR 
     // see VOTE_BOX_MBR in constants.ts

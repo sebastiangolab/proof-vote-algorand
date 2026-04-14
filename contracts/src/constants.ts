@@ -66,4 +66,5 @@ export const USER_VOTE_BOX_MBR = 25700
 //  Minimum allowed withdrawal window in seconds (1 day).
 //  Prevents poll creators from setting withdrawWindow=0 which would make stakes
 //  immediately sweepable by the platform at vote end, trapping voters.
-export const MIN_WITHDRAW_WINDOW = 86400 // 1 day in seconds
+export const MIN_WITHDRAW_WINDOW = 86400      // 1 day in seconds
+export const MAX_WITHDRAW_WINDOW = 31_536_000 // 1 year in seconds — prevents uint64 overflow of endAt + withdrawWindow
