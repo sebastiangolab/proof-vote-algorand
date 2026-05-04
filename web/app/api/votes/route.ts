@@ -104,29 +104,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid appId" }, { status: 422 });
   }
 
-  // 4. Verify creator's signature over the canonical creation message
-  const sigValid = verifyVoteCreationSignature(
-    data.appId,
-    data.voteId,
-    data.slug,
-    data.creatorWallet,
-    data.signature
-  );
-  
-  if (!sigValid) {
-    return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
+  // 4. Verify creator's signature over the canonical creation message.
+  // Skip when NEXT_PUBLIC_ALGORAND_NETWORK=localnet (localnet dev — KMD lacks signData).
+  const isLocalnet = process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet";
+  if (!isLocalnet) {
+    const sigValid = verifyVoteCreationSignature(
+      data.appId,
+      data.voteId,
+      data.slug,
+      data.creatorWallet,
+      data.signature
+    );
+
+    if (!sigValid) {
+      return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
+    }
   }
 
   // 5. Write to DB — catch unique constraint violation (P2002)
   try {
-    // signature is not persisted
-    const { signature: _sig, ...dbData } = data;
+    // signature are not spread — signature is not persisted
+    const { signature: _sig, endAt, ...restDbData } = data;
 
     const created = await prisma.voteMetadata.create({
       data: {
-        ...dbData,
+        ...restDbData,
         appId: BigInt(data.appId),
         voteId: BigInt(data.voteId),
+        endAt: endAt ? Number(endAt) : undefined,
       },
     });
 
