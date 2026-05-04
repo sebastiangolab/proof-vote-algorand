@@ -8,7 +8,8 @@
   },
   "overrides": {
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "algosdk": "^3.5.2"
   },
   "workspaces": [
     "contracts",
@@ -17,11 +18,13 @@
   "scripts": {
     "build:contracts": "npm run build --workspace=contracts",
     "test:contracts": "npm run test --workspace=contracts",
+    "deploy:contracts": "npm run deploy --workspace=contracts",
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspace=web",
     "test": "npm run test --workspace=web",
     "test:all": "npm run test:contracts && npm run test",
     "lint": "npm run lint --workspace=web && npm run lint --workspace=contracts",
+    "prisma:studio": "npm run prisma:studio --workspace=web",
     "format": "prettier --write ."
   }
 }

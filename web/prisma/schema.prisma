@@ -20,5 +20,6 @@ model VoteMetadata {
   description   String?  @db.Text
   optionLabels  Json
   creatorWallet String
+  endAt         Int?
   createdAt     DateTime @default(now())
 }

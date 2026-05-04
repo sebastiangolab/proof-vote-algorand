@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 !.env.example
+.deploy-result.json
 
 # Ignore compiled TEAL/bytecode (keep ARC-32/56 JSON only)
 artifacts/*.teal

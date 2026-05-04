@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:push:gen": "prisma db push && prisma generate"
+    "db:push:gen": "prisma db push && prisma generate",
+    "prisma:studio": "prisma studio"
   },
   "prisma": {
     "seed": "npx --yes tsx prisma/seed.ts"
