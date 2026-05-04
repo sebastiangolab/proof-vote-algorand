@@ -20,7 +20,7 @@ export function MyStakesPanel() {
   if (!mounted || !activeAddress) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm text-center text-zinc-500 text-sm">
-        Connect a wallet to view your stakes.
+        Connect a wallet to view your refunds.
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function MyStakesPanel() {
         <div className="space-y-4">
           {!isOwner && IS_TESTNET && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              Visible on testnet only — this section is restricted to the platform owner on mainnet.
+              Visible on demo only — this section is restricted to the platform owner on mainnet.
             </div>
           )}
 

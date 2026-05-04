@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { buildCreateVoteAtc } from "@/lib/contract-client";
-import { getAlgodClient, fetchAppConfig, MICRO_ALGO, type AppConfig } from "@/lib/algorand";
+import { getAlgodClient, fetchAppConfig, MICRO_ALGO, VOTE_BOX_MBR, CREATE_VOTE_TX_FEE, type AppConfig } from "@/lib/algorand";
 import { buildCreationMessage } from "@/lib/signatures";
 import slugify from "slugify";
 import SectionLabel from "./FormSectionLabel";
@@ -30,11 +30,10 @@ const formSchema = z
           .min(2, "At least 2 options are required")
           .max(8),
       ),
-    startAt: z.string().min(1, "Start time is required"),
     endAt: z.string().min(1, "End time is required"),
   })
-  .refine((v) => new Date(v.endAt) > new Date(v.startAt), {
-    message: "End time must be after start time",
+  .refine((v) => new Date(v.endAt) > new Date(), {
+    message: "End time must be in the future",
     path: ["endAt"],
   });
 
@@ -46,6 +45,31 @@ export function CreateVoteForm() {
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // On localnet, tests can advance the chain timestamp far ahead of wall clock via
+  // setBlockOffsetTimestamp. We read the chain's current timestamp so we can use it
+  // as the floor for endAt (preventing "endAt must be in the future" assertion failures).
+  const [chainTimestamp, setChainTimestamp] = useState<bigint | null>(null);
+
+  const isLocalNet = process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet";
+
+  useEffect(() => {
+    if (!isLocalNet) return;
+
+    const algod = getAlgodClient();
+    algod.status().do().then((s) => algod.block(s.lastRound).do()).then((b) => {
+      setChainTimestamp(b.block.header.timestamp as bigint);
+    }).catch(() => {});
+  }, [isLocalNet]);
+
+  // Use the later of wall clock and chain timestamp as the minimum for endAt.
+  const nowFloor = chainTimestamp
+    ? new Date(Math.max(Date.now(), Number(chainTimestamp) * 1000))
+    : new Date();
+
+  const nowMin = new Date(Math.ceil(nowFloor.getTime() / 60000) * 60000)
+    .toISOString()
+    .slice(0, 16);
 
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
 
@@ -69,7 +93,6 @@ export function CreateVoteForm() {
       title: "",
       description: "",
       options: [{ value: "" }, { value: "" }],
-      startAt: "",
       endAt: "",
     },
   });
@@ -95,17 +118,26 @@ export function CreateVoteForm() {
       const appId = process.env.NEXT_PUBLIC_APP_ID ?? "";
 
       const nonEmptyOptions = values.options.map((option) => option.value.trim()).filter(Boolean);
-      const startAt = toUnixSec(values.startAt);
       const endAt = toUnixSec(values.endAt);
+
+      // On localnet the chain timestamp can be far ahead of wall clock (after test runs
+      // that use setBlockOffsetTimestamp). Guard here so we surface a clear error instead
+      // of a raw opcode assertion failure from the contract.
+      const isLocalnet = process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet";
+      if (isLocalnet && chainTimestamp !== null && endAt <= chainTimestamp) {
+        setSubmitError(
+          "End time is before the localnet chain time (tests may have advanced it). " +
+          "Pick a later date or reset the localnet."
+        );
+        return;
+      }
 
       // Create the vote on Algorand and get the resulting voteId
       const atc = await buildCreateVoteAtc({
         sender: activeAddress,
-        startAt,
         endAt,
         optionCount: BigInt(nonEmptyOptions.length),
         stake: appConfig!.defaultStake,
-        withdrawWindow: appConfig!.defaultWithdrawWindow,
         signer: transactionSigner,
       });
 
@@ -115,10 +147,15 @@ export function CreateVoteForm() {
       const voteId = String(result.methodResults[0].returnValue as bigint);
 
       // Sign the creation message to prove ownership of the creator wallet
-      const message = buildCreationMessage(appId, voteId, slug);
-      const msgBase64 = Buffer.from(new TextEncoder().encode(message)).toString("base64");
-      const signResult = await signData(msgBase64, { scope: ScopeType.AUTH, encoding: "base64" });
-      const signatureBase64 = Buffer.from(signResult.signature).toString("base64");
+      let signatureBase64: string = "localnet";
+
+      // On non-local networks, we require a signature to verify the creator's wallet ownership.
+      if (!isLocalNet) {
+        const message = buildCreationMessage(appId, voteId, slug);
+        const msgBase64 = Buffer.from(new TextEncoder().encode(message)).toString("base64");
+        const signResult = await signData(msgBase64, { scope: ScopeType.AUTH, encoding: "base64" });
+        signatureBase64 = Buffer.from(signResult.signature).toString("base64");
+      }
 
       // Send the vote details and signature to our backend for verification and storage
       const res = await fetch("/api/votes", {
@@ -132,6 +169,7 @@ export function CreateVoteForm() {
           description: values.description || undefined,
           optionLabels: nonEmptyOptions,
           creatorWallet: activeAddress,
+          endAt: String(endAt),
           signature: signatureBase64,
         }),
       });
@@ -238,22 +276,12 @@ export function CreateVoteForm() {
         <div className="p-6 space-y-4">
           <SectionLabel>Schedule</SectionLabel>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="startAt">Start</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="endAt">End</Label>
 
-              <Input id="startAt" type="datetime-local" {...register("startAt")} />
+            <Input id="endAt" type="datetime-local" min={nowMin} {...register("endAt")} />
 
-              <FieldError message={errors.startAt?.message} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="endAt">End</Label>
-
-              <Input id="endAt" type="datetime-local" {...register("endAt")} />
-
-              <FieldError message={errors.endAt?.message} />
-            </div>
+            <FieldError message={errors.endAt?.message} />
           </div>
         </div>
 
@@ -274,10 +302,11 @@ export function CreateVoteForm() {
               <p className="text-xs text-zinc-500">Withdraw window</p>
 
               <p className="mt-0.5 text-sm font-semibold text-zinc-800">
-                {appConfig ? `${Number(appConfig.defaultWithdrawWindow) / 3600} h after vote ends` : "—"}
+                {appConfig ? (() => { const h = Number(appConfig.defaultWithdrawWindow) / 3600; return `${h % 24 === 0 ? `${h / 24} days` : `${h} h`} after vote ends`; })() : "—"}
               </p>
             </div>
           </div>
+
         </div>
 
         {/* ── Submit ─────────────────────────────────────────────────────── */}
@@ -294,6 +323,10 @@ export function CreateVoteForm() {
               {submitError}
             </div>
           )}
+
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+            Creation cost: <span className="font-semibold">{Number(VOTE_BOX_MBR + CREATE_VOTE_TX_FEE) / MICRO_ALGO} ALGO</span>
+          </div>
 
           <button
             type="submit"

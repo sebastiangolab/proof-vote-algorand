@@ -92,8 +92,8 @@ export function WhatYouGetSection() {
               <h3 className="font-semibold text-zinc-900">Your stake is refundable</h3>
 
               <p className="mt-1 text-sm leading-relaxed text-zinc-600">
-                The ALGO you lock to vote is returned in full after the vote ends. It&apos;s just a
-                deposit — not a fee.
+                The ALGO you lock to vote is returned after the vote ends. Only a small transaction
+                fee is non-refundable.
               </p>
             </div>
           </div>
@@ -148,13 +148,13 @@ export function WhatYouGetSection() {
               <h3 className="font-semibold text-zinc-900">Create a poll in under a minute</h3>
 
               <p className="mt-1 text-sm leading-relaxed text-zinc-600">
-                Anyone with a wallet can launch a vote. Set the optionions, pick a schedule, and
+                Anyone with a wallet can create a vote. Set the options, pick a schedule, and
                 share the link — that&apos;s it.
               </p>
             </div>
           </div>
 
-          {/* 6 — All your stakes in one place */}
+          {/* 6 — All your refunds in one place */}
           <div className="flex flex-col gap-3 rounded-2xl border p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
               <svg
@@ -174,10 +174,10 @@ export function WhatYouGetSection() {
             </div>
 
             <div>
-              <h3 className="font-semibold text-zinc-900">All your stakes in one place</h3>
-              
+              <h3 className="font-semibold text-zinc-900">All your refunds in one place</h3>
+
               <p className="mt-1 text-sm leading-relaxed text-zinc-600">
-                Visit <em>My Stakes</em> to see every ended vote where your ALGO is waiting.
+                Visit <em>My Refunds</em> to see every ended vote where your ALGO is waiting.
                 Withdraw them all with one click.
               </p>
             </div>

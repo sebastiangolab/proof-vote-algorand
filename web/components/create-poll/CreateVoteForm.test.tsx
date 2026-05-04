@@ -49,11 +49,8 @@ async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(optionInputs[0], "Yes");
   await user.type(optionInputs[1], "No");
 
-  // Set valid start and end times via fireEvent since datetime-local is tricky
-  const startInput = screen.getByLabelText(/start/i);
+  // Set a valid end time
   const endInput = screen.getByLabelText("End");
-  await user.clear(startInput);
-  await user.type(startInput, "2030-01-01T10:00");
   await user.clear(endInput);
   await user.type(endInput, "2030-01-02T10:00");
 }
@@ -97,29 +94,21 @@ describe("CreateVoteForm", () => {
     });
   });
 
-  it("shows error when endAt is before startAt", async () => {
+  it("shows error when endAt is missing", async () => {
     const user = userEvent.setup();
     render(<CreateVoteForm />);
 
     await user.type(screen.getByLabelText(/title/i), "Test");
-    // Slug is auto-generated from title; no editable slug field
 
     const optionInputs = screen.getAllByPlaceholderText(/option \d/i);
     await user.type(optionInputs[0], "Yes");
     await user.type(optionInputs[1], "No");
 
-    // endAt < startAt
-    const startInput = screen.getByLabelText(/start/i);
-    const endInput = screen.getByLabelText("End");
-    await user.clear(startInput);
-    await user.type(startInput, "2030-01-02T10:00");
-    await user.clear(endInput);
-    await user.type(endInput, "2030-01-01T10:00");
-
+    // Leave endAt empty and submit — expects the required validation error
     await user.click(screen.getByRole("button", { name: /create vote/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/end time must be after start time/i)).toBeInTheDocument();
+      expect(screen.getByText("End time is required")).toBeInTheDocument();
     });
   });
 

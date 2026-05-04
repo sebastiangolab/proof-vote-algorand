@@ -26,10 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning prevents React hydration mismatch caused by
-    // wallet providers injecting browser-only attributes on <html>
+    // suppressHydrationWarning on <html> and <body> prevents React hydration
+    // mismatches caused by browser extensions (e.g. Grammarly, wallet providers)
+    // injecting attributes that were not present during SSR
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
         <TestnetBanner />
         
         <WalletProvider>{children}</WalletProvider>

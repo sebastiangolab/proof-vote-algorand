@@ -28,22 +28,20 @@ export function VoteForm({ voteId, options, stake, disabled, disabledReason }: P
     setSubmitting(true);
     setError(null);
 
-    try {
-      // Build and execute the transaction to cast the vote.
-      const atc = await buildVoteAtc({
-        sender: activeAddress,
-        voteId,
-        choice: BigInt(selected),
-        stake,
-        signer: transactionSigner,
-      });
+    const algod = getAlgodClient();
+    const choice = BigInt(selected);
 
-      const algod = getAlgodClient();
+    async function castVote() {
+      const atc = await buildVoteAtc({ sender: activeAddress!, voteId, choice, stake, signer: transactionSigner! });
       await atc.execute(algod, 4);
+    }
 
+    try {
+      await castVote();
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Voting failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -55,7 +53,7 @@ export function VoteForm({ voteId, options, stake, disabled, disabledReason }: P
         <p className="text-sm font-semibold text-emerald-800">Vote submitted!</p>
 
         <p className="mt-1 text-sm text-emerald-700">
-          You can withdraw your stake after the vote ends.
+          You can withdraw your refund after the vote ends.
         </p>
       </div>
     );
@@ -107,7 +105,7 @@ export function VoteForm({ voteId, options, stake, disabled, disabledReason }: P
         </div>
 
         <div className="flex justify-between">
-          <span>Box deposit (refundable)</span>
+          <span>Storage deposit (refundable)</span>
           <span className="font-medium text-zinc-800">{Number(USER_VOTE_BOX_MBR) / MICRO_ALGO} ALGO</span>
         </div>
 
@@ -115,7 +113,7 @@ export function VoteForm({ voteId, options, stake, disabled, disabledReason }: P
           <span>Tx fees (non-refundable)</span>
           <span className="font-medium text-zinc-800">{Number(VOTE_TX_FEE) / MICRO_ALGO} ALGO</span>
         </div>
-        
+
         <div className="flex justify-between border-t border-zinc-200 pt-1 mt-1 text-zinc-900">
           <span className="font-semibold">Total</span>
           <span className="font-bold">

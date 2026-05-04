@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useWallet } from "@txnlab/use-wallet-react";
 import { Button } from "@/components/ui/button";
@@ -16,26 +16,82 @@ export function ConnectWallet({ layout = "horizontal" }: ConnectWalletProps) {
   const { wallets, activeAddress, activeWallet } = useWallet();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    function handleClick(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [accountMenuOpen]);
 
   useEffect(() => { setMounted(true); }, []);
 
   if (mounted && activeAddress) {
     const isVertical = layout === "vertical";
+    const accounts = activeWallet?.accounts ?? [];
+    const hasMultipleAccounts = accounts.length > 1;
+
+    const addressDisplay = (addr: string, short = false) =>
+      `${addr.slice(0, short ? 6 : 8)}…${addr.slice(-4)}`;
 
     return (
       <div className={isVertical ? "flex flex-col" : "flex items-center gap-3"}>
-        <div className={cn("flex items-center gap-2", isVertical && "py-3")}>
-          <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+        {/* Account selector */}
+        <div className={cn("relative", isVertical && "py-1")} ref={menuRef}>
+          <button
+            onClick={() => hasMultipleAccounts && setAccountMenuOpen((v) => !v)}
+            className={cn(
+              "flex items-center gap-2",
+              hasMultipleAccounts && "cursor-pointer hover:opacity-80",
+              isVertical && "py-2"
+            )}
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+            <span className={cn("font-mono truncate", isVertical ? "text-xs text-zinc-600" : "text-sm text-zinc-800")}>
+              {addressDisplay(activeAddress, !isVertical)}
+            </span>
+            {hasMultipleAccounts && (
+              <span className="text-xs text-zinc-400">{accountMenuOpen ? "▲" : "▼"}</span>
+            )}
+          </button>
 
-          <span className={cn("font-mono truncate", isVertical ? "text-xs text-zinc-600" : "text-sm text-zinc-800")}>
-            {activeAddress.slice(0, isVertical ? 8 : 6)}…{activeAddress.slice(-4)}
-          </span>
+          {accountMenuOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+              {accounts.map((account) => (
+                <button
+                  key={account.address}
+                  onClick={() => {
+                    activeWallet?.setActiveAccount(account.address);
+                    setAccountMenuOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-zinc-50",
+                    account.address === activeAddress && "font-semibold text-indigo-600"
+                  )}
+                >
+                  <span className="font-mono">{addressDisplay(account.address)}</span>
+                  {account.address === activeAddress && (
+                    <span className="ml-auto text-xs text-indigo-400">active</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {isVertical && <div className="mb-1 border-t border-zinc-100" />}
 
         <Button asChild variant="ghost" size="sm" className={cn(isVertical ? "justify-start px-0" : "hidden md:inline-flex")}>
-          <Link href="/my-stakes">My Stakes</Link>
+          <Link href="/my-refunds">My Refunds</Link>
         </Button>
 
         <Button

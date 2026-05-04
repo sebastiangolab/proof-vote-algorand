@@ -8,16 +8,27 @@ export const metadata: Metadata = {
 };
 
 export default async function VotesPage() {
-  const voteRecords = await prisma.voteMetadata.findMany({
+  const rows = await prisma.voteMetadata.findMany({
     orderBy: { createdAt: "desc" },
     select: {
       slug: true,
       title: true,
       description: true,
       optionLabels: true,
+      endAt: true,
       createdAt: true,
     },
   });
+
+  // Determine status of each vote based on endAt —  
+  // "active" if endAt is in the future or not set,
+  // "ended" if endAt is in the past. 
+  const now = Math.floor(Date.now() / 1000);
+
+  const voteRecords = rows.map((row) => ({
+    ...row,
+    status: (row.endAt && row.endAt < now ? "ended" : "active") as "active" | "ended",
+  }));
 
   return (
     <PageLayout mainClassName="max-w-4xl px-4 py-8 pb-16">

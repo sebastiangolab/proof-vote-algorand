@@ -6,9 +6,10 @@ import {
   findUserWithdrawable,
   getAlgodClient,
   MICRO_ALGO,
+  WITHDRAW_TX_FEE,
   type WithdrawTarget,
 } from "@/lib/algorand";
-import { buildBatchWithdrawAtc } from "@/lib/contract-client";
+import { buildBatchWithdrawAtc, advanceLocalnetPast } from "@/lib/contract-client";
 import { chunkArray, formatDate } from "@/helpers/stakeHelpers";
 
 type UserWithdrawSectionProps = { address: string };
@@ -69,19 +70,24 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
     const algod = getAlgodClient();
     const errs: string[] = [];
 
+    // On localnet blocks only increment ~1s per block from genesis, so
+    // latestTimestamp can lag far behind wall clock. Advance past current
+    // wall clock (scanner already verified endAt < now for all targets).
+    // advanceLocalnetPast resets the offset after mining so createVote is unaffected.
+    if (process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet") {
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      await advanceLocalnetPast(now, address, transactionSigner);
+    }
+
     for (const batch of batches) {
       try {
-        // Build and execute the batch transaction for this group of votes
         const atc = await buildBatchWithdrawAtc({
           voteIds: batch,
           sender: address,
           signer: transactionSigner,
         });
-
         await atc.execute(algod, 4);
-
-        // If successful, increment the done count by the batch size
-        setWithdrawDoneCount((withdrawDoneCount) => withdrawDoneCount + batch.length);
+        setWithdrawDoneCount((prev) => prev + batch.length);
       } catch (err) {
         errs.push(err instanceof Error ? err.message : "Batch failed");
         setWithdrawErrors([...errs]);
@@ -90,6 +96,9 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
 
     setIsWithdrawing(false);
     setIsWithdrawComplete(true);
+
+    // Re-scan to remove successfully withdrawn targets from the list
+    findUserWithdrawable(address).then(setWithdrawTargets).catch(() => {});
   }
 
   // Calculate total stake across all withdrawTargets for display
@@ -98,10 +107,10 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm divide-y divide-zinc-100">
       <div className="px-6 py-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Your stakes</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Your refunds</p>
 
         <p className="mt-1 text-sm text-zinc-600">
-          Ended votes where your stake is ready to withdraw.
+          Ended votes where your refund is ready to withdraw.
         </p>
       </div>
 
@@ -113,8 +122,15 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
             {scanningError}
           </div>
         </div>
+      ) : isWithdrawComplete && withdrawTargets.length === 0 ? (
+        <div className="px-6 py-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            Done — withdrawn {withdrawDoneCount} of {withdrawTotalCount}.
+            {withdrawErrors.length > 0 && ` ${withdrawErrors.length} batch(es) failed.`}
+          </div>
+        </div>
       ) : withdrawTargets.length === 0 ? (
-        <div className="px-6 py-6 text-sm text-zinc-500">No withdrawable stakes found.</div>
+        <div className="px-6 py-6 text-sm text-zinc-500">No refunds found.</div>
       ) : (
         <>
           <div className="px-6 py-3 flex items-center justify-between">
@@ -147,6 +163,13 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
                 </span>
               </div>
             ))}
+          </div>
+
+          <div className="px-6 py-3 rounded-none border-t border-zinc-100 bg-zinc-50 flex items-center justify-between text-xs text-zinc-500">
+            <span>Tx fee per withdrawal (non-refundable)</span>
+            <span className="font-medium text-zinc-700">
+              {(Number(WITHDRAW_TX_FEE) / MICRO_ALGO).toFixed(4)} ALGO × {withdrawTargets.length}
+            </span>
           </div>
 
           {!isWithdrawComplete ? (

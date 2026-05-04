@@ -3,7 +3,7 @@ import { MyStakesPanel } from "@/components/my-stakes/MyStakesPanel";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "My Stakes — ProofVote",
+  title: "My Refunds — ProofVote",
 };
 
 export default function MyStakesPage() {
@@ -12,9 +12,9 @@ export default function MyStakesPage() {
       header={{ backHref: "/votes", backLabel: "← All Votes" }}
     >
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">My Stakes</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">My Refunds</h1>
 
-        <p className="mt-1 text-zinc-600">Withdraw your stake from ended votes.</p>
+        <p className="mt-1 text-zinc-600">Withdraw your refunds from ended votes.</p>
       </div>
 
       <MyStakesPanel />

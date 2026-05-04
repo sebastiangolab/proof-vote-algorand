@@ -21,6 +21,7 @@ jest.mock("@/lib/algorand", () => ({
   fetchAppConfig: (...args: unknown[]) => mockFetchAppConfig(...args),
   MICRO_ALGO: 1_000_000,
   VOTE_TX_FEE: 2000n,
+  USER_VOTE_BOX_MBR: 25_700n,
 }));
 
 // ─── Mock VoteForm ────────────────────────────────────────────────────────────
@@ -39,12 +40,20 @@ const now = BigInt(Math.floor(Date.now() / 1000));
 
 const voteStateActive: VoteState = {
   creator: "CREATOR0000000000000000000000000000000000000000000000000",
-  startAt: now - 3600n,
   endAt: now + 3600n,
   stake: 1_000_000n, // 1 ALGO
   withdrawDeadline: now + 7200n,
   optionCount: 2n,
-counts: [5n, 3n, 0n, 0n, 0n, 0n, 0n, 0n],
+  counts: [5n, 3n, 0n, 0n, 0n, 0n, 0n, 0n],
+};
+
+const voteStateEnded: VoteState = {
+  creator: "CREATOR0000000000000000000000000000000000000000000000000",
+  endAt: now - 3600n,
+  stake: 1_000_000n,
+  withdrawDeadline: now + 3600n,
+  optionCount: 2n,
+  counts: [5n, 3n, 0n, 0n, 0n, 0n, 0n, 0n],
 };
 
 const metadata: VoteMetadata = {
@@ -75,18 +84,41 @@ describe("VoteDetail", () => {
     // Wait for stake info to appear
     await waitFor(() => {
       // StatCard renders value and sub-label in separate elements
-      expect(screen.getByText("1 ALGO")).toBeInTheDocument();
-      expect(screen.getByText("refundable")).toBeInTheDocument();
+      expect(screen.getByText("1.0257 ALGO")).toBeInTheDocument();
+      expect(screen.getByText("refundable (stake + storage)")).toBeInTheDocument();
     });
   });
 
-  it("displays the withdraw deadline warning", async () => {
-    mockGetVoteState.mockResolvedValue(voteStateActive);
+  it("displays the withdraw deadline warning only when the user has voted", async () => {
+    mockGetVoteState.mockResolvedValue(voteStateEnded);
+
+    const mockModule = jest.requireMock("@txnlab/use-wallet-react");
+    mockModule.useWallet = () => ({
+      activeAddress: "VOTER000000000000000000000000000000000000000000000000000",
+    });
+
+    mockGetUserState.mockResolvedValue({
+      voted: true,
+      choice: 0n,
+      stakeLocked: 1_000_000n,
+      withdrawn: false,
+    });
 
     render(<VoteDetail metadata={metadata} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/your stake goes to/i)).toBeInTheDocument();
+      expect(screen.getByText(/your refund goes to/i)).toBeInTheDocument();
+    });
+  });
+
+  it("hides the withdraw deadline warning when the user has not voted", async () => {
+    mockGetVoteState.mockResolvedValue(voteStateEnded);
+    // default: no activeAddress, no userState
+
+    render(<VoteDetail metadata={metadata} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/your stake goes to/i)).not.toBeInTheDocument();
     });
   });
 

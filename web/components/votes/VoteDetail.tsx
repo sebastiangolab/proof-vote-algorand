@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchVoteState, fetchUserVoteState, fetchAppConfig, MICRO_ALGO, VOTE_TX_FEE, type VoteState } from "@/lib/algorand";
+import { fetchVoteState, fetchUserVoteState, fetchAppConfig, MICRO_ALGO, VOTE_TX_FEE, USER_VOTE_BOX_MBR, type VoteState } from "@/lib/algorand";
 import { VoteForm } from "./VoteForm";
 import { useWallet } from "@txnlab/use-wallet-react";
 import { formatDate, timeLeft } from "@/helpers/votesHelpers";
@@ -71,6 +71,7 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
 
   const now = BigInt(Math.floor(Date.now() / 1000));
   const isEnded = voteState ? voteState.endAt < now : false;
+  const isCreator = !!activeAddress && activeAddress === metadata.creatorWallet;
 
   // Total votes is the sum of counts for all options (only up to optionCount, since the array has fixed length)
   const totalVotes = voteState
@@ -88,19 +89,19 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1",
-                !isEnded
-                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                  : "bg-zinc-100 text-zinc-600 ring-zinc-200"
+                isEnded
+                  ? "bg-zinc-100 text-zinc-600 ring-zinc-200"
+                  : "bg-emerald-50 text-emerald-700 ring-emerald-200"
               )}
             >
               <span
                 className={cn(
                   "size-1.5 rounded-full",
-                  !isEnded ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+                  isEnded ? "bg-zinc-400" : "bg-emerald-500 animate-pulse"
                 )}
               />
 
-              {!isEnded ? "Active" : "Ended"}
+              {isEnded ? "Ended" : "Active"}
             </span>
           ) : null}
         </div>
@@ -121,7 +122,7 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
         </div>
       ) : (
         voteState && (
-          <div className={`grid gap-3 ${isEnded ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
+          <div className={`grid gap-3 grid-cols-2`}>
             <StatCard
               label="Total votes"
               value={String(totalVotes)}
@@ -139,9 +140,9 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
                 <StatCard label="Tx fee" value={`${Number(VOTE_TX_FEE) / MICRO_ALGO} ALGO`} sub="non-refundable" />
                 
                 <StatCard
-                  label="Stake"
-                  value={`${Number(voteState.stake) / MICRO_ALGO} ALGO`}
-                  sub="refundable"
+                  label="Deposit"
+                  value={`${(Number(voteState.stake) + Number(USER_VOTE_BOX_MBR)) / MICRO_ALGO} ALGO`}
+                  sub="refundable (stake + storage)"
                 />
               </>
             )}
@@ -170,8 +171,14 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
                   voteId={voteId}
                   options={options}
                   stake={voteState.stake}
-                  disabled={userVoted}
-                  disabledReason={userVoted ? "You have already voted." : undefined}
+                  disabled={userVoted || isCreator}
+                  disabledReason={
+                    isCreator
+                      ? "Poll creators cannot vote on their own polls."
+                      : userVoted
+                        ? "You have already voted."
+                        : undefined
+                  }
                 />
               </>
             ) : (
@@ -193,11 +200,12 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
       )}
 
       {/* ── Withdraw warning ─────────────────────────────────────────── */}
-      {voteState && (
+      {voteState && isEnded && userVoted && (
         <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-800">
           <span className="mt-0.5 shrink-0">⚠</span>      
+
           <span>
-            Withdraw before <strong>{formatDate(voteState.withdrawDeadline)}</strong> or your stake
+            Withdraw before <strong>{formatDate(voteState.withdrawDeadline)}</strong> or your refund
             goes to{" "}
             <span className="font-mono text-xs">
               {platformOwner ? `${platformOwner.slice(0, 8)}…${platformOwner.slice(-4)}` : "the platform"}

@@ -8,7 +8,7 @@ import {
   MICRO_ALGO,
   type SweepTarget,
 } from "@/lib/algorand";
-import { buildBatchSweepAtc } from "@/lib/contract-client";
+import { buildBatchSweepAtc, advanceLocalnetPast } from "@/lib/contract-client";
 import { chunkArray, shortAddr } from "@/helpers/stakeHelpers";
 
 type SweepSectionProps = {
@@ -61,11 +61,18 @@ function SweepSection({
     const algod = getAlgodClient();
     const errs: string[] = [];
 
+    // On localnet blocks only increment ~1s per block from genesis, so
+    // latestTimestamp can lag far behind wall clock. Advance past current
+    // wall clock (scanner already verified withdrawDeadline < now for all targets).
+    // advanceLocalnetPast resets the offset after mining so createVote is unaffected.
+    if (process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet") {
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      await advanceLocalnetPast(now, sender, transactionSigner);
+    }
+
     for (const batch of batches) {
       try {
-        //  Build, sign and send the batch transaction for this group of sweep targets
         const atc = await buildBatchSweepAtc({ targets: batch, sender, signer: transactionSigner });
-        
         await atc.execute(algod, 4);
         setDone((d) => d + batch.length);
       } catch (err) {
@@ -76,6 +83,9 @@ function SweepSection({
 
     setSweeping(false);
     setIsSweepComplete(true);
+
+    // Re-scan to remove successfully swept targets from the list
+    findEligibleSweeps().then(setTargets).catch(() => {});
   }
 
   const totalStake = sweepTargets ? sweepTargets.reduce((s, t) => s + t.stake, 0n) : 0n;
