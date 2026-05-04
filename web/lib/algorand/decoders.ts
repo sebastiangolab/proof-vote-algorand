@@ -10,7 +10,6 @@ import type { VoteState, UserVoteState } from "./types";
 import {
   VOTE_STATE_SIZE,
   VOTE_CREATOR_OFFSET,
-  VOTE_START_AT_OFFSET,
   VOTE_END_AT_OFFSET,
   VOTE_STAKE_OFFSET,
   VOTE_WITHDRAW_DEADLINE_OFFSET,
@@ -40,7 +39,6 @@ export function decodeVoteState(bytes: Uint8Array): VoteState {
   const view = new DataView(bytes.buffer, bytes.byteOffset);
 
   const creator = algosdk.encodeAddress(bytes.slice(VOTE_CREATOR_OFFSET, VOTE_CREATOR_OFFSET + 32));
-  const startAt = view.getBigUint64(VOTE_START_AT_OFFSET);
   const endAt = view.getBigUint64(VOTE_END_AT_OFFSET);
   const stake = view.getBigUint64(VOTE_STAKE_OFFSET);
   const withdrawDeadline = view.getBigUint64(VOTE_WITHDRAW_DEADLINE_OFFSET);
@@ -51,7 +49,7 @@ export function decodeVoteState(bytes: Uint8Array): VoteState {
     counts.push(view.getBigUint64(VOTE_COUNTS_OFFSET + i * UINT64_SIZE));
   }
 
-  return { creator, startAt, endAt, stake, withdrawDeadline, optionCount, counts };
+  return { creator, endAt, stake, withdrawDeadline, optionCount, counts };
 }
 
 /**

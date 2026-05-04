@@ -24,7 +24,6 @@ function getMockVoteState(voteId: bigint): VoteState | null {
   const mocks: Record<string, VoteState> = {
     "1": {
       creator: MOCK_OWNER,
-      startAt: now - 86400n,
       endAt: now + 7n * 86400n,
       stake: 1_000_000n,
       withdrawDeadline: now + 14n * 86400n,
@@ -33,7 +32,6 @@ function getMockVoteState(voteId: bigint): VoteState | null {
     },
     "2": {
       creator: MOCK_OWNER,
-      startAt: now - 30n * 86400n,
       endAt: now - 7n * 86400n,
       stake: 1_000_000n,
       withdrawDeadline: now + 7n * 86400n,

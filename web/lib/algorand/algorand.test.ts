@@ -67,27 +67,25 @@ describe("generateUserVoteBoxName", () => {
 describe("decodeVoteState", () => {
   function buildVoteStateBytes(params: {
     creator: Uint8Array;
-    startAt: bigint;
     endAt: bigint;
     stake: bigint;
     withdrawDeadline: bigint;
     optionCount: bigint;
     counts: bigint[];
   }): Uint8Array {
-    const buf = new Uint8Array(136);
+    const buf = new Uint8Array(128);
     const view = new DataView(buf.buffer);
 
     // offset 0: creator (32 bytes)
     buf.set(params.creator, 0);
     // offsets 32, 40, 48, 56, 64
-    view.setBigUint64(32, params.startAt);
-    view.setBigUint64(40, params.endAt);
-    view.setBigUint64(48, params.stake);
-    view.setBigUint64(56, params.withdrawDeadline);
-    view.setBigUint64(64, params.optionCount);
-    // offset 72: counts[0..7]
+    view.setBigUint64(32, params.endAt);
+    view.setBigUint64(40, params.stake);
+    view.setBigUint64(48, params.withdrawDeadline);
+    view.setBigUint64(56, params.optionCount);
+    // offset 64: counts[0..7]
     for (let i = 0; i < 8; i++) {
-      view.setBigUint64(72 + i * 8, params.counts[i] ?? 0n);
+      view.setBigUint64(64 + i * 8, params.counts[i] ?? 0n);
     }
     return buf;
   }
@@ -97,7 +95,6 @@ describe("decodeVoteState", () => {
 
   const sampleBytes = buildVoteStateBytes({
     creator: creatorPubKey,
-    startAt: 1_700_000_000n,
     endAt: 1_700_003_600n,
     stake: 1_000_000n,
     withdrawDeadline: 1_700_007_200n,
@@ -105,8 +102,8 @@ describe("decodeVoteState", () => {
     counts: [10n, 20n, 5n, 0n, 0n, 0n, 0n, 0n],
   });
 
-  it("throws if bytes length is not 136", () => {
-    expect(() => decodeVoteState(new Uint8Array(100))).toThrow("136");
+  it("throws if bytes length is not 128", () => {
+    expect(() => decodeVoteState(new Uint8Array(100))).toThrow("128");
   });
 
   it("decodes creator address from offset 0", () => {
@@ -114,32 +111,27 @@ describe("decodeVoteState", () => {
     expect(state.creator).toBe(creatorAccount.addr.toString());
   });
 
-  it("decodes startAt from offset 32", () => {
-    const state = decodeVoteState(sampleBytes);
-    expect(state.startAt).toBe(1_700_000_000n);
-  });
-
-  it("decodes endAt from offset 40", () => {
+  it("decodes endAt from offset 32", () => {
     const state = decodeVoteState(sampleBytes);
     expect(state.endAt).toBe(1_700_003_600n);
   });
 
-  it("decodes stake from offset 48", () => {
+  it("decodes stake from offset 40", () => {
     const state = decodeVoteState(sampleBytes);
     expect(state.stake).toBe(1_000_000n);
   });
 
-  it("decodes withdrawDeadline from offset 56", () => {
+  it("decodes withdrawDeadline from offset 48", () => {
     const state = decodeVoteState(sampleBytes);
     expect(state.withdrawDeadline).toBe(1_700_007_200n);
   });
 
-  it("decodes optionCount from offset 64", () => {
+  it("decodes optionCount from offset 56", () => {
     const state = decodeVoteState(sampleBytes);
     expect(state.optionCount).toBe(3n);
   });
 
-  it("decodes counts array from offset 72", () => {
+  it("decodes counts array from offset 64", () => {
     const state = decodeVoteState(sampleBytes);
     expect(state.counts).toEqual([10n, 20n, 5n, 0n, 0n, 0n, 0n, 0n]);
   });

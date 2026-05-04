@@ -10,24 +10,22 @@ export const UINT64_SIZE        = 8     // ARC-4 uint64 bytes
 export const VOTE_BOX_NAME_SIZE = 9     // 1 + 8
 export const USER_BOX_NAME_SIZE = 41    // 1 + 8 + 32
 
-// ─── VoteState byte offsets (VOTE_STATE_SIZE = 136 bytes, ARC-4 encoding) ────
+// ─── VoteState byte offsets (VOTE_STATE_SIZE = 128 bytes, ARC-4 encoding) ────
 //
 //   offset   0 : creator          Address   32B
-//   offset  32 : startAt          uint64     8B
-//   offset  40 : endAt            uint64     8B
-//   offset  48 : stake            uint64     8B
-//   offset  56 : withdrawDeadline uint64     8B
-//   offset  64 : optionCount      uint64     8B
-//   offset  72 : counts[0..7]     uint64[8] 64B  — element i at VOTE_COUNTS_OFFSET + i * UINT64_SIZE
+//   offset  32 : endAt            uint64     8B
+//   offset  40 : stake            uint64     8B
+//   offset  48 : withdrawDeadline uint64     8B
+//   offset  56 : optionCount      uint64     8B
+//   offset  64 : counts[0..7]     uint64[8] 64B  — element i at VOTE_COUNTS_OFFSET + i * UINT64_SIZE
 
-export const VOTE_STATE_SIZE               = 136
+export const VOTE_STATE_SIZE               = 128
 export const VOTE_CREATOR_OFFSET           = 0
-export const VOTE_START_AT_OFFSET          = 32
-export const VOTE_END_AT_OFFSET            = 40
-export const VOTE_STAKE_OFFSET             = 48
-export const VOTE_WITHDRAW_DEADLINE_OFFSET = 56
-export const VOTE_OPTION_COUNT_OFFSET      = 64
-export const VOTE_COUNTS_OFFSET            = 72
+export const VOTE_END_AT_OFFSET            = 32
+export const VOTE_STAKE_OFFSET             = 40
+export const VOTE_WITHDRAW_DEADLINE_OFFSET = 48
+export const VOTE_OPTION_COUNT_OFFSET      = 56
+export const VOTE_COUNTS_OFFSET            = 64
 
 // ─── UserVoteState byte offsets (USER_VOTE_STATE_SIZE = 17 bytes, ARC-4 encoding) ─
 //
@@ -53,15 +51,16 @@ export const MICRO_ALGO = 1_000_000  // µALGO per ALGO
 //
 //   Formula: 2500 + 400 × (boxNameSize + boxValueSize)  (µALGO)
 //
-//   VOTE_BOX_MBR:      2500 + 400 × (9 + 136)  = 60,500 µALGO
+//   VOTE_BOX_MBR:      2500 + 400 × (9 + 128)  = 57,300 µALGO
 //   USER_VOTE_BOX_MBR: 2500 + 400 × (41 + 17)  = 25,700 µALGO
 
-export const VOTE_BOX_MBR      = 60_500n  // bigint — matches algosdk v3 payment amounts
+export const VOTE_BOX_MBR      = 57_300n  // bigint — matches algosdk v3 payment amounts
 export const USER_VOTE_BOX_MBR = 25_700n  // bigint
 
 // ─── Transaction fees ─────────────────────────────────────────────────────────
-//
-//   vote() sends a group of 2 transactions: PayTxn + AppCall — each 1000 µALGO
 
-export const ALGO_TX_FEE  = 1_000n  // µALGO per single transaction
-export const VOTE_TX_FEE  = 2n * ALGO_TX_FEE  // 2 txns in the vote group
+export const ALGO_TX_FEE          = 1_000n  // µALGO per single transaction
+export const CREATE_VOTE_TX_FEE   = 2n * ALGO_TX_FEE  // 2 txns in the createVote group: PayTxn + AppCall
+export const VOTE_TX_FEE          = 2n * ALGO_TX_FEE  // 2 txns in the vote group: PayTxn + AppCall
+export const WITHDRAW_TX_FEE      = 2n * ALGO_TX_FEE  // AppCall + 1 inner sendPayment
+export const SWEEP_USER_TX_FEE    = 2n * ALGO_TX_FEE  // AppCall + 1 inner sendPayment

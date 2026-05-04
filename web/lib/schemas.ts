@@ -29,6 +29,8 @@ export const CreateVoteMetadataSchema = z.object({
     .max(8, "At most 8 options are allowed"),
   /** Algorand address of the vote creator (58-char base32) */
   creatorWallet: z.string().length(58, "creatorWallet must be a valid Algorand address (58 chars)"),
+  /** Unix timestamp (seconds) when voting closes */
+  endAt: z.string().regex(/^\d+$/, "endAt must be a numeric string").optional(),
   /**
    * Base64-encoded signature of the canonical creation message.
    * Produced client-side with algosdk.signBytes.

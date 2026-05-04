@@ -4,6 +4,7 @@
  */
 
 import type { WithdrawTarget, SweepTarget, VoteState } from "./types";
+import { USER_VOTE_BOX_MBR } from "./constants";
 import { getAlgodClient } from "./client";
 import { generateUserVoteBoxName, parseUserVoteBoxName } from "./boxes";
 import { decodeUserVoteState } from "./decoders";
@@ -24,7 +25,7 @@ export async function findUserWithdrawable(address: string): Promise<WithdrawTar
 
   // In mock mode, return a single target for local development
   if (appIdStr === "0") {
-    return [{ voteId: 2n, stake: 1_000_000n, withdrawDeadline: now + 7n * 86400n }];
+    return [{ voteId: 2n, stake: 1_000_000n + USER_VOTE_BOX_MBR, withdrawDeadline: now + 7n * 86400n }];
   }
 
   const appId = Number(appIdStr);
@@ -73,7 +74,7 @@ export async function findUserWithdrawable(address: string): Promise<WithdrawTar
 
     targets.push({
       voteId,
-      stake: userState.stakeLocked,
+      stake: userState.stakeLocked + USER_VOTE_BOX_MBR,
       withdrawDeadline: voteState.withdrawDeadline,
     });
   }
@@ -151,7 +152,7 @@ export async function findEligibleSweeps(): Promise<SweepTarget[]> {
     if (!userState.voted || userState.withdrawn) continue;
 
     const { voteId, address } = eligibleBoxes[i];
-    targets.push({ voteId, userAddress: address, stake: userState.stakeLocked });
+    targets.push({ voteId, userAddress: address, stake: userState.stakeLocked + USER_VOTE_BOX_MBR });
   }
 
   return targets;

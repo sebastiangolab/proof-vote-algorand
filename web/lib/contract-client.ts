@@ -8,7 +8,7 @@
 
 import algosdk from "algosdk";
 import { getAlgodClient, generateVoteBoxName, generateUserVoteBoxName, fetchNextVoteId, type SweepTarget } from "./algorand";
-import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "./algorand/constants";
+import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, ALGO_TX_FEE, WITHDRAW_TX_FEE, SWEEP_USER_TX_FEE } from "./algorand/constants";
 import arc4 from "../../contracts/artifacts/ProofVote.arc4.json";
 
 // Load ABI from compiled artifacts (relative to project root at runtime)
@@ -21,6 +21,60 @@ function getAppId(): number {
   return Number(id);
 }
 
+// ─── advanceLocalnetBlock ─────────────────────────────────────────────────────
+
+/**
+ * Sends a 0-ALGO self-payment to produce a fresh block on localnet.
+ *
+ * On AlgoKit localnet blocks are only produced on demand, so
+ * globals.latestTimestamp can lag arbitrarily behind wall time.
+ * Call this before time-sensitive contract calls (e.g. vote()) to ensure
+ * the next block's latestTimestamp is current.
+ *
+ * Only use when NEXT_PUBLIC_ALGORAND_NETWORK === "localnet".
+ */
+/**
+ * Advances the localnet block timestamp past `targetUnixSec`, then resets the
+ * offset so subsequent operations (e.g. createVote) are unaffected.
+ *
+ * On localnet blocks only increment ~1s per block from genesis, so the chain
+ * timestamp can lag far behind wall clock. This sets a one-time offset just
+ * large enough to clear `targetUnixSec`, mines one block, then resets to 0.
+ *
+ * Only call on localnet (NEXT_PUBLIC_ALGORAND_NETWORK === "localnet").
+ */
+export async function advanceLocalnetPast(
+  targetUnixSec: bigint,
+  sender: string,
+  signer: algosdk.TransactionSigner
+): Promise<void> {
+  const algod = getAlgodClient();
+
+  const status = await algod.status().do();
+  const block = await algod.block(status.lastRound).do();
+  const chainTimestamp = block.block.header.timestamp as bigint;
+
+  if (chainTimestamp <= targetUnixSec) {
+    await algod.setBlockOffsetTimestamp(targetUnixSec - chainTimestamp + 1n).do();
+  }
+
+  const txnParams = await algod.getTransactionParams().do();
+  const atc = new algosdk.AtomicTransactionComposer();
+  atc.addTransaction({
+    txn: algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender,
+      receiver: sender,
+      amount: 0n,
+      suggestedParams: { ...txnParams, fee: ALGO_TX_FEE, flatFee: true },
+    }),
+    signer,
+  });
+  await atc.execute(algod, 4);
+
+  // Reset offset so subsequent operations are not affected
+  await algod.setBlockOffsetTimestamp(0n).do();
+}
+
 // ─── buildCreateVoteAtc ───────────────────────────────────────────────────────
 
 /**
@@ -29,21 +83,17 @@ function getAppId(): number {
  * Group: [PayTxn(voteBoxMBR)] + [AppCall(createVote)]
  *
  * @param params.sender - Creator's Algorand address
- * @param params.startAt - Vote start Unix timestamp (seconds)
  * @param params.endAt - Vote end Unix timestamp (seconds)
  * @param params.optionCount - Number of options (1-8)
  * @param params.stake - Required stake per vote in µALGO
- * @param params.withdrawWindow - Withdraw window in seconds after vote ends
  * @param params.signer - Transaction signer from useWallet()
  * @returns Configured ATC — returns voteId (uint64) on execution
  */
 export async function buildCreateVoteAtc(params: {
   sender: string;
-  startAt: bigint;
   endAt: bigint;
   optionCount: bigint;
   stake: bigint;
-  withdrawWindow: bigint;
   signer: algosdk.TransactionSigner;
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
@@ -63,23 +113,20 @@ export async function buildCreateVoteAtc(params: {
     sender: params.sender,
     receiver: algosdk.getApplicationAddress(appId),
     amount: VOTE_BOX_MBR,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: ALGO_TX_FEE, flatFee: true },
   });
 
   atc.addMethodCall({
     appID: appId,
     method: contract.getMethodByName("createVote"),
-    // methodArgs: [startAt, endAt, optionCount, stake, withdrawWindow, mbrPayment]
     methodArgs: [
-      params.startAt,
       params.endAt,
       params.optionCount,
       params.stake,
-      params.withdrawWindow,
       { txn: mbrPayment, signer: params.signer }, // pay type arg
     ],
     sender: params.sender,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: ALGO_TX_FEE, flatFee: true },
     signer: params.signer,
     // The contract writes to the vote box in this transaction — must declare the box ref.
     // nextVoteId is the ID that will be assigned (auto-incremented on the contract side).
@@ -123,7 +170,7 @@ export async function buildVoteAtc(params: {
     sender: params.sender,
     receiver: algosdk.getApplicationAddress(appId),
     amount: paymentAmount,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: ALGO_TX_FEE, flatFee: true },
   });
 
   atc.addMethodCall({
@@ -136,7 +183,7 @@ export async function buildVoteAtc(params: {
       { txn: payTxn, signer: params.signer }, // pay type arg
     ],
     sender: params.sender,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: ALGO_TX_FEE, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read) — prefix 'v' + voteId
@@ -176,7 +223,7 @@ export async function buildWithdrawAtc(params: {
     method: contract.getMethodByName("withdraw"),
     methodArgs: [params.voteId],
     sender: params.sender,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: WITHDRAW_TX_FEE, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read)
@@ -219,7 +266,7 @@ export async function buildBatchWithdrawAtc(params: {
       method: contract.getMethodByName("withdraw"),
       methodArgs: [voteId],
       sender: params.sender,
-      suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+      suggestedParams: { ...txnParams, fee: WITHDRAW_TX_FEE, flatFee: true },
       signer: params.signer,
       boxes: [
         { appIndex: appId, name: generateVoteBoxName(voteId) },
@@ -260,7 +307,7 @@ export async function buildSweepUserAtc(params: {
     method: contract.getMethodByName("sweepUser"),
     methodArgs: [params.voteId, params.userAddress],
     sender: params.sender,
-    suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+    suggestedParams: { ...txnParams, fee: SWEEP_USER_TX_FEE, flatFee: true },
     signer: params.signer,
     boxes: [
       // Vote box (read sweepTo address)
@@ -305,7 +352,7 @@ export async function buildBatchSweepAtc(params: {
       method: contract.getMethodByName("sweepUser"),
       methodArgs: [target.voteId, target.userAddress],
       sender: params.sender,
-      suggestedParams: { ...txnParams, fee: 1000n, flatFee: true },
+      suggestedParams: { ...txnParams, fee: SWEEP_USER_TX_FEE, flatFee: true },
       signer: params.signer,
       boxes: [
         { appIndex: appId, name: generateVoteBoxName(target.voteId) },

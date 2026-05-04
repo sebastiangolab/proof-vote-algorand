@@ -4,7 +4,6 @@
  */
 export type VoteState = {
   creator: string; // Algorand address
-  startAt: bigint; // Unix timestamp seconds
   endAt: bigint; // Unix timestamp seconds
   stake: bigint; // microALGO required to vote
   withdrawDeadline: bigint; // Unix timestamp seconds
