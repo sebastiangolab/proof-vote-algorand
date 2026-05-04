@@ -11,7 +11,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@algorandfoundation/algokit-utils": "^7.0.0",
+    "@algorandfoundation/algokit-utils": "^9.2.0",
     "@algorandfoundation/tealscript": "^0.103.0",
     "algosdk": "^3.5.2",
     "dotenv": "^16.0.0"

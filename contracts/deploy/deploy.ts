@@ -105,12 +105,12 @@ async function deploy(): Promise<void> {
   // Get the createApplication method from the ABI
   const createMethod = contract.getMethodByName("createApplication");
 
-  // Prepare ABI-encoded arguments for createApplication
+  // Raw arguments for createApplication — ATC encodes these automatically
   const abiArgs = [
-    new algosdk.ABIUintType(64).encode(DEFAULT_STAKE),
-    new algosdk.ABIUintType(64).encode(MIN_STAKE),
-    new algosdk.ABIUintType(64).encode(MAX_STAKE),
-    new algosdk.ABIUintType(64).encode(DEFAULT_WITHDRAW_WINDOW),
+    DEFAULT_STAKE,
+    MIN_STAKE,
+    MAX_STAKE,
+    DEFAULT_WITHDRAW_WINDOW,
   ];
 
   // Get suggested params for the transaction
@@ -122,7 +122,9 @@ async function deploy(): Promise<void> {
   //     ARC-4 router when dispatching the `create` ABI method
   // We use the network's minFee as the floor in case it ever exceeds 1000 µALGO.
   suggestedParams.flatFee = true;
-  suggestedParams.fee = Math.max(2000, (suggestedParams.minFee ?? 1000) * 2);
+  suggestedParams.fee = suggestedParams.minFee != null && suggestedParams.minFee * 2n > 2000n
+    ? suggestedParams.minFee * 2n
+    : 2000n;
 
   // Create an AtomicTransactionComposer to call the createApplication method
   const atc = new algosdk.AtomicTransactionComposer();
@@ -148,21 +150,38 @@ async function deploy(): Promise<void> {
   const result = await atc.execute(algod, 4);
   const txId = result.txIDs[0];
   const confirmation = await algosdk.waitForConfirmation(algod, txId, 4);
-  const appId = confirmation["application-index"] as number;
+  const appId = confirmation.applicationIndex!;
   const appAddress = algosdk.getApplicationAddress(appId);
 
+  // Seed the app account with the Algorand base minimum balance (100,000 µALGO).
+  // Every Algorand account must hold this regardless of boxes — without it the
+  // very first createVote call would fail because the MBR payment from the user
+  // only covers the box cost, not the base account minimum.
+  const BASE_MIN_BALANCE = 100_000n;
+  const seedParams = await algod.getTransactionParams().do();
+  const seedTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+    sender: deployer.addr,
+    receiver: appAddress,
+    amount: BASE_MIN_BALANCE,
+    suggestedParams: seedParams,
+  });
+  const seedTxId = (await algod.sendRawTransaction(seedTxn.signTxn(deployer.sk)).do()).txid;
+  await algosdk.waitForConfirmation(algod, seedTxId, 4);
+
   console.log(`\n✅ Contract deployed successfully`);
-  console.log(`   APP_ID      : ${appId}`);
-  console.log(`   APP_ADDRESS : ${appAddress}`);
-  console.log(`   Txn         : ${txId}`);
-  console.log(`\nAdd to web/.env.local:\n  NEXT_PUBLIC_APP_ID=${appId}\n`);
+  console.log(`   APP_ID         : ${appId}`);
+  console.log(`   APP_ADDRESS    : ${appAddress}`);
+  console.log(`   Platform owner : ${deployer.addr}`);
+  console.log(`   Txn            : ${txId}`);
+  console.log(`   Seed txn       : ${seedTxId}`);
+  console.log(`\nAdd to web/.env:\n  NEXT_PUBLIC_APP_ID=${appId}\n  NEXT_PUBLIC_PLATFORM_OWNER_ADDRESS=${deployer.addr}\n`);
 
   // Save result for CI/scripting
   const resultPath = path.join(__dirname, "..", ".deploy-result.json");
   fs.writeFileSync(
     resultPath,
     JSON.stringify(
-      { appId, appAddress, txId, network: process.env.ALGORAND_NETWORK ?? "testnet" },
+      { appId: appId.toString(), appAddress: appAddress.toString(), txId, network: process.env.ALGORAND_NETWORK ?? "testnet" },
       null,
       2
     )
