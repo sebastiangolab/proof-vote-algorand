@@ -23,7 +23,6 @@ export async function deployContract(
     minStake?: number;
     maxStake?: number;
     defaultWithdrawWindow?: number;
-    minWithdrawWindow?: number;
   } = {}
 ): Promise<{ appId: number; appAddress: string }> {
   // Set default parameters if not provided
@@ -32,7 +31,6 @@ export async function deployContract(
     minStake = 500_000,        // 0.5 ALGO
     maxStake = 10_000_000,     // 10 ALGO
     defaultWithdrawWindow = 86_400, // 1 day
-    minWithdrawWindow = 86_400,     // 1 day (override in tests to e.g. 2 for fast deadline tests)
   } = params;
 
   // Read and compile TEAL sources from artifacts
@@ -74,15 +72,15 @@ export async function deployContract(
   atc.addMethodCall({
     appID: 0,
     method: createMethod,
-    methodArgs: [defaultStake, minStake, maxStake, defaultWithdrawWindow, minWithdrawWindow],
+    methodArgs: [defaultStake, minStake, maxStake, defaultWithdrawWindow],
     sender: deployer.addr,
     signer,
     suggestedParams,
     approvalProgram,
     clearProgram,
-    // Global state: platformOwner (bytes=1), defaultStake/minStake/maxStake/defaultWithdrawWindow/minWithdrawWindow/nextVoteId (ints=6)
+    // Global state: platformOwner (bytes=1), defaultStake/minStake/maxStake/defaultWithdrawWindow/nextVoteId (ints=5)
     numGlobalByteSlices: 1,
-    numGlobalInts: 6,
+    numGlobalInts: 5,
     numLocalByteSlices: 0,
     numLocalInts: 0,
     onComplete: algosdk.OnApplicationComplete.NoOpOC,

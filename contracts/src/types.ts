@@ -7,7 +7,6 @@
  */
 export type VoteState = {
   creator: Address; // wallet that created this poll
-  startAt: uint64; // unix timestamp: voting opens
   endAt: uint64; // unix timestamp: voting closes
   stake: uint64; // µALGO required per voter
   withdrawDeadline: uint64; // unix timestamp: last moment to self-withdraw

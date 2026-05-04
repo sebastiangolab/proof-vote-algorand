@@ -54,8 +54,8 @@ export async function forwardToAfterVotePhase(
   // Depending on the phase, the target timestamp is either the poll end time or the withdraw deadline,
   // which are located at different offsets in the box value.
   const target = phase === 'pollEnd'
-    ? algosdk.decodeUint64(box.value.slice(40, 48), 'bigint')
-    : algosdk.decodeUint64(box.value.slice(56, 64), 'bigint');
+    ? algosdk.decodeUint64(box.value.slice(32, 40), 'bigint')
+    : algosdk.decodeUint64(box.value.slice(48, 56), 'bigint');
 
   const now = await latestTimestamp(fixture);
 

@@ -3,15 +3,16 @@ import { algorandFixture } from "@algorandfoundation/algokit-utils/testing";
 import { AlgoAmount } from "@algorandfoundation/algokit-utils/types/amount";
 import { deployContract, loadContract } from "./helpers/deploy";
 import { generateVoteBoxName, generateUserVoteBoxName, fetchVoteState, fetchUserVoteState } from "./helpers/boxes";
-import { latestTimestamp } from "./helpers/time";
+import { latestTimestamp, forwardToAfterVotePhase, registerTimestampResetAfterEach } from "./helpers/time";
 import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "../src/constants";
-import { DEFAULT_END_AT_OFFSET, DEFAULT_START_AT_OFFSET, STAKE, WITHDRAW_WINDOW } from "./testConstants";
+import { DEFAULT_END_AT_OFFSET, STAKE } from "./testConstants";
 import { TestAccount } from "./types";
 
 // Provides an isolated Algorand sandbox environment (algod client, funded accounts) and resets
 // blockchain state before each test via fixture.newScope, preventing test cross-contamination.
 const fixture = algorandFixture();
 beforeEach(fixture.newScope);
+registerTimestampResetAfterEach(() => fixture.context.algod);
 
 
 describe("vote", () => {
@@ -45,13 +46,13 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing startAt = now - DEFAULT_START_AT_OFFSET (already in the past)
-    // and endAt = now + DEFAULT_END_AT_OFFSET so that voting is open immediately.
+    // Create an AtomicTransactionComposer to call the createVote method with endAt in the future
+    // so that voting is open immediately upon creation.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 3, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 3, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -215,75 +216,6 @@ describe("vote", () => {
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
-  // Tests that a user cannot vote before the poll has started (before startAt), and that the contract correctly rejects the transaction.
-  it("rejects when voting has not started yet (before startAt)", async () => {
-    const { algod, generateAccount } = fixture.context;
-
-    // Deploy a new instance of the contract and create a poll that starts in the future (startAt = now + 1 hour)
-    // so that we can test that voting is rejected before the poll starts.
-    const futureCreator = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
-    const { appId: futureAppId, appAddress: futureAppAddress } = await deployContract(algod, futureCreator);
-
-    /** Create poll */
-
-    const now = await latestTimestamp(fixture);
-    const suggestedParams = await algod.getTransactionParams().do();
-
-    // Create mbr payment transaction for the vote box, which is required to create a vote.
-    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      sender: futureCreator.addr,
-      receiver: futureAppAddress,
-      amount: VOTE_BOX_MBR,
-      suggestedParams,
-    });
-
-    // Create an AtomicTransactionComposer to call the createVote method, passing startAt = now + 1 hour (in the future) and endAt = now + 2 hours.
-    const createAtc = new algosdk.AtomicTransactionComposer();
-    createAtc.addMethodCall({
-      appID: futureAppId,
-      method: loadContract().getMethodByName("createVote"),
-      methodArgs: [now + BigInt(3600), now + BigInt(7200), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: futureCreator.signer }],
-      sender: futureCreator.addr,
-      signer: futureCreator.signer,
-      suggestedParams,
-      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
-    });
-
-    const result = await createAtc.execute(algod, 4);
-
-    const futureVoteId = Number(result.methodResults[0].returnValue);
-
-    /** Cast vote */
-
-    const voteParams = await algod.getTransactionParams().do();
-
-    // Create mbr payment transaction for the user vote box, which is required to vote.
-    const voteMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      sender: voter.addr,
-      receiver: futureAppAddress,
-      amount: STAKE + USER_VOTE_BOX_MBR,
-      suggestedParams: voteParams,
-    });
-
-    // Create an AtomicTransactionComposer to call the vote method, passing the future voteId, choice, and the payment transaction for the user vote box. 
-    const voteAtc = new algosdk.AtomicTransactionComposer();
-    voteAtc.addMethodCall({
-      appID: futureAppId,
-      method: loadContract().getMethodByName("vote"),
-      methodArgs: [futureVoteId, 0, { txn: voteMbrPayment, signer: voter.signer }],
-      sender: voter.addr,
-      signer: voter.signer,
-      suggestedParams: voteParams,
-      boxes: [
-        { appIndex: 0, name: generateVoteBoxName(futureVoteId) },
-        { appIndex: 0, name: generateUserVoteBoxName(futureVoteId, voter.addr) },
-      ],
-    });
-
-    // We expect the transaction to be rejected because the poll has not started yet (startAt is in the future).
-    await expect(voteAtc.execute(algod, 4)).rejects.toThrow();
-  });
-
   // Tests that a user cannot vote with an out-of-range choice index (>= optionCount), and that the contract correctly rejects the transaction.
   it("rejects when choice index is out of range", async () => {
     const { algod } = fixture.context;
@@ -320,19 +252,52 @@ describe("vote", () => {
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
+  // Tests that the creator of a poll cannot vote on their own poll.
+  it("rejects when the creator tries to vote on their own poll", async () => {
+    const { algod } = fixture.context;
+    const suggestedParams = await algod.getTransactionParams().do();
+
+    // Create mbr payment transaction for the user vote box, which is required to vote.
+    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: creator.addr,
+      receiver: appAddress,
+      amount: STAKE + USER_VOTE_BOX_MBR,
+      suggestedParams,
+    });
+
+    // Create an AtomicTransactionComposer to call the vote method, passing the voteId, choice, 
+    // and the payment transaction for the user vote box, but using the creator's account to attempt to vote on their own poll.
+    const atc = new algosdk.AtomicTransactionComposer();
+    atc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("vote"),
+      methodArgs: [voteId, 0, { txn: mbrPayment, signer: creator.signer }],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams,
+      boxes: [
+        { appIndex: 0, name: generateVoteBoxName(voteId) },
+        { appIndex: 0, name: generateUserVoteBoxName(voteId, creator.addr) },
+      ],
+    });
+
+    // We expect the transaction to be rejected because the creator of a poll is not allowed to vote on their own poll.
+    await expect(atc.execute(algod, 4)).rejects.toThrow();
+  });
+
   // Tests that a user cannot vote after the poll has ended (after endAt), and that the contract correctly rejects the transaction.
   it("rejects when voting is over (after endAt)", async () => {
     const { algod, generateAccount } = fixture.context;
 
-    // Create a fresh app with a poll that has already ended
+    // Create a fresh app with a poll that ends in 60 seconds, then advance time past it.
     const expiredCreator = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
     const { appId: expiredAppId, appAddress: expiredAppAddress } = await deployContract(algod, expiredCreator);
 
-    /** Create an expired poll */
+    /** Create a poll with a near-future endAt */
 
+    const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment transaction for the vote box, which is required to create a vote.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: expiredCreator.addr,
       receiver: expiredAppAddress,
@@ -340,12 +305,11 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing startAt = now - DEFAULT_START_AT_OFFSET (already in the past)
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: expiredAppId,
       method: loadContract().getMethodByName("createVote"),
-      methodArgs: [1, 2, 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: expiredCreator.signer }],
+      methodArgs: [now + BigInt(60), 2, STAKE, { txn: mbrPayment, signer: expiredCreator.signer }],
       sender: expiredCreator.addr,
       signer: expiredCreator.signer,
       suggestedParams,
@@ -355,25 +319,29 @@ describe("vote", () => {
     const result = await createAtc.execute(algod, 4);
     const expiredVoteId = Number(result.methodResults[0].returnValue);
 
+    // Advance time past the poll end
+    await forwardToAfterVotePhase(algod, expiredAppId, expiredVoteId, expiredCreator, fixture, 'pollEnd');
+
     /** Cast vote */
 
     // Create mbr payment transaction for the user vote box, which is required to vote.
-    const secondMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+    const voteParams = await algod.getTransactionParams().do();
+
+    const voteMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: voter.addr,
       receiver: expiredAppAddress,
       amount: STAKE + USER_VOTE_BOX_MBR,
-      suggestedParams,
+      suggestedParams: voteParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing the voteId of the expired poll, choice, and the payment transaction for the user vote box.
     const voteAtc = new algosdk.AtomicTransactionComposer();
     voteAtc.addMethodCall({
       appID: expiredAppId,
       method: loadContract().getMethodByName("vote"),
-      methodArgs: [expiredVoteId, 0, { txn: secondMbrPayment, signer: voter.signer }],
+      methodArgs: [expiredVoteId, 0, { txn: voteMbrPayment, signer: voter.signer }],
       sender: voter.addr,
       signer: voter.signer,
-      suggestedParams,
+      suggestedParams: voteParams,
       boxes: [
         { appIndex: 0, name: generateVoteBoxName(expiredVoteId) },
         { appIndex: 0, name: generateUserVoteBoxName(expiredVoteId, voter.addr) },

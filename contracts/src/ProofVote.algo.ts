@@ -1,6 +1,6 @@
 import { Contract } from "@algorandfoundation/tealscript";
 import { VoteState, UserVoteKey, UserVoteState } from "./types";
-import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE, MAX_WITHDRAW_WINDOW } from "./constants";
+import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR, VOTE_COUNTS_OFFSET, UINT64_SIZE } from "./constants";
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
 
@@ -21,9 +21,6 @@ class ProofVote extends Contract {
 
   /** Default withdrawal window in seconds; suggested value for createVote */
   defaultWithdrawWindow = GlobalStateKey<uint64>();
-
-  /** Minimum allowed withdrawal window in seconds */
-  minWithdrawWindow = GlobalStateKey<uint64>();
 
   /** Auto-incrementing poll ID counter; first poll gets ID 1 */
   nextVoteId = GlobalStateKey<uint64>();
@@ -51,22 +48,19 @@ class ProofVote extends Contract {
    * @param defaultStake          - Default poll stake in µALGO (e.g. 1_000_000 = 1 ALGO)
    * @param minStake              - Minimum allowed stake in µALGO
    * @param maxStake              - Maximum allowed stake in µALGO
-   * @param defaultWithdrawWindow - Default withdrawal window in seconds (e.g. 86400 = 1 day)
-   * @param minWithdrawWindow     - Minimum allowed withdrawal window in seconds (e.g. 86400 = 1 day; use 1 in tests)
+   * @param defaultWithdrawWindow - Withdrawal window in seconds applied to every poll
    */
   createApplication(
     defaultStake: uint64,
     minStake: uint64,
     maxStake: uint64,
     defaultWithdrawWindow: uint64,
-    minWithdrawWindow: uint64
   ): void {
     this.platformOwner.value = this.txn.sender;
     this.defaultStake.value = defaultStake;
     this.minStake.value = minStake;
     this.maxStake.value = maxStake;
     this.defaultWithdrawWindow.value = defaultWithdrawWindow;
-    this.minWithdrawWindow.value = minWithdrawWindow;
     // Vote IDs start at 1 so that 0 can serve as a sentinel "unset" value
     this.nextVoteId.value = 1;
   }
@@ -77,29 +71,23 @@ class ProofVote extends Contract {
    * The caller must include a PayTxn in the same atomic group that covers
    * the vote box MBR (see VOTE_BOX_MBR in constants.ts).
    *
-   * @param startAt        - Unix timestamp when voting opens
-   * @param endAt          - Unix timestamp when voting closes (must be > startAt)
+   * @param endAt          - Unix timestamp when voting closes (must be in the future)
    * @param optionCount    - Number of options (2–8 inclusive)
    * @param stake          - Required stake per voter in µALGO
-   * @param withdrawWindow - Seconds after endAt during which users may self-withdraw
    * @param mbrPayment     - PayTxn to contract for VOTE_BOX_MBR
    * @returns              Assigned poll ID (uint64, auto-incremented from 1)
    */
   createVote(
-    startAt: uint64,
     endAt: uint64,
     optionCount: uint64,
     stake: uint64,
-    withdrawWindow: uint64,
     mbrPayment: PayTxn
   ): uint64 {
-    assert(endAt > startAt, "endAt must be after startAt");
+    assert(endAt > globals.latestTimestamp, "endAt must be in the future");
     assert(optionCount >= 2, "at least 2 options required");
     assert(optionCount <= 8, "at most 8 options allowed");
     assert(stake >= this.minStake.value, "stake below minimum");
     assert(stake <= this.maxStake.value, "stake above maximum");
-    assert(withdrawWindow >= this.minWithdrawWindow.value, "withdraw window too short");
-    assert(withdrawWindow <= MAX_WITHDRAW_WINDOW, "withdraw window too long");
 
     // Verify caller has paid the vote box MBR 
     // see VOTE_BOX_MBR in constants.ts
@@ -117,11 +105,9 @@ class ProofVote extends Contract {
 
     this.votes(voteId).value = {
       creator: this.txn.sender,
-      startAt: startAt,
       endAt: endAt,
       stake: stake,
-      // withdrawDeadline is computed from endAt + withdrawWindow
-      withdrawDeadline: endAt + withdrawWindow,
+      withdrawDeadline: endAt + this.defaultWithdrawWindow.value,
       optionCount: optionCount,
       counts: counts,
     };
@@ -147,9 +133,9 @@ class ProofVote extends Contract {
 
     const voteState = this.votes(voteId).value;
 
-    assert(globals.latestTimestamp >= voteState.startAt, "voting not started");
     assert(globals.latestTimestamp < voteState.endAt, "voting ended");
     assert(choice < voteState.optionCount, "invalid choice index");
+    assert(this.txn.sender !== voteState.creator, "creator cannot vote");
 
     // Verify the user has paid the required amount (stake + user box MBR)
     // See USER_VOTE_BOX_MBR in constants.ts

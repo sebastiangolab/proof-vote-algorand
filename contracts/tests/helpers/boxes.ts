@@ -6,7 +6,6 @@ import {
   USER_BOX_PREFIX,
   UINT64_SIZE,
   VOTE_CREATOR_OFFSET,
-  VOTE_START_AT_OFFSET,
   VOTE_END_AT_OFFSET,
   VOTE_STAKE_OFFSET,
   VOTE_WITHDRAW_DEADLINE_OFFSET,
@@ -71,7 +70,6 @@ export function generateUserVoteBoxName(voteId: number, address: string | algosd
 
 export interface DecodedVoteState {
   creator: string; // Algorand address
-  startAt: bigint; // Unix timestamp in seconds
   endAt: bigint; // Unix timestamp in seconds
   stake: bigint;  // Total stake in µALGO
   withdrawDeadline: bigint; // Unix timestamp in seconds when users can withdraw their stake after voting ends
@@ -100,7 +98,6 @@ export function decodeVoteState(bytes: Uint8Array): DecodedVoteState {
   const creator = algosdk.encodeAddress(buf.subarray(VOTE_CREATOR_OFFSET, VOTE_CREATOR_OFFSET + 32));
   
   // Extract the next fields based on their byte offsets
-  const startAt = buf.readBigUInt64BE(VOTE_START_AT_OFFSET);
   const endAt = buf.readBigUInt64BE(VOTE_END_AT_OFFSET);
   const stake = buf.readBigUInt64BE(VOTE_STAKE_OFFSET);
   const withdrawDeadline = buf.readBigUInt64BE(VOTE_WITHDRAW_DEADLINE_OFFSET);
@@ -112,7 +109,7 @@ export function decodeVoteState(bytes: Uint8Array): DecodedVoteState {
     counts.push(buf.readBigUInt64BE(VOTE_COUNTS_OFFSET + i * UINT64_SIZE));
   }
 
-  return { creator, startAt, endAt, stake, withdrawDeadline, optionCount, counts };
+  return { creator, endAt, stake, withdrawDeadline, optionCount, counts };
 }
 
 /**

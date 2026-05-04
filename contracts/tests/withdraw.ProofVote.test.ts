@@ -5,7 +5,7 @@ import { deployContract, loadContract } from "./helpers/deploy";
 import { generateVoteBoxName, generateUserVoteBoxName, fetchUserVoteState } from "./helpers/boxes";
 import { latestTimestamp, forwardToAfterVotePhase, registerTimestampResetAfterEach } from "./helpers/time";
 import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "../src/constants";
-import { DEFAULT_START_AT_OFFSET, STAKE, WITHDRAW_WINDOW } from "./testConstants";
+import { STAKE } from "./testConstants";
 import { TestAccount } from "./types";
 
 // Provides an isolated Algorand sandbox environment (algod client, funded accounts) and resets
@@ -86,7 +86,7 @@ describe("withdraw", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(100), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(100), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -141,11 +141,10 @@ describe("withdraw", () => {
   it("rejects withdrawal when window is closed (after withdrawDeadline)", async () => {
     const { algod } = fixture.context;
 
-    // Deploy with minWithdrawWindow = 2s so we can create a poll with a 2-second
-    // withdrawal window and advance past it quickly by mining blocks.
+    // Deploy with defaultWithdrawWindow = 2s so the withdrawal deadline passes quickly.
     ({ appId, appAddress } = await deployContract(algod, creator, {
       minStake: 100_000,
-      minWithdrawWindow: 2,
+      defaultWithdrawWindow: 2,
     }));
     
     const now = await latestTimestamp(fixture);
@@ -168,7 +167,7 @@ describe("withdraw", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(100), 2, STAKE, 2, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(100), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -228,7 +227,7 @@ describe("withdraw", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(2), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(2), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -287,7 +286,7 @@ describe("withdraw", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(100), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(100), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -361,7 +360,7 @@ describe("withdraw", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(3600), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(3600), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,

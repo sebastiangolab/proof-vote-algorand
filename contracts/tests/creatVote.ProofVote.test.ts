@@ -5,7 +5,7 @@ import { deployContract, loadContract } from "./helpers/deploy";
 import { generateVoteBoxName, fetchVoteState } from "./helpers/boxes";
 import { latestTimestamp } from "./helpers/time";
 import { VOTE_BOX_MBR } from "../src/constants";
-import { DEFAULT_END_AT_OFFSET, DEFAULT_START_AT_OFFSET, STAKE, WITHDRAW_WINDOW } from "./testConstants";
+import { DEFAULT_END_AT_OFFSET, STAKE } from "./testConstants";
 import { TestAccount } from "./types";
 
 // Provides an isolated Algorand sandbox environment (algod client, funded accounts) and resets
@@ -51,11 +51,9 @@ describe("createVote", () => {
       appID: appId,
       method: contract.getMethodByName("createVote"),
       methodArgs: [
-        now + DEFAULT_START_AT_OFFSET,
         now + DEFAULT_END_AT_OFFSET,
         optionCount,
         STAKE,
-        WITHDRAW_WINDOW,
         { txn: mbrPayment, signer: creator.signer },
       ],
       sender: creator.addr,
@@ -77,11 +75,9 @@ describe("createVote", () => {
     expect(voteState!.counts.every((count) => count === 0n)).toBe(true);
   });
 
-  // Tests that createVote rejects when endAt is less than or equal to startAt, 
-  // ensuring that the voting period is valid and non-negative.
-  it("rejects when endAt <= startAt", async () => {
+  // Tests that createVote rejects when endAt is not in the future.
+  it("rejects when endAt is not in the future", async () => {
     const { algod } = fixture.context;
-    const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
     // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
@@ -92,19 +88,19 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with endAt <= startAt
+    // Create an AtomicTransactionComposer to call the createVote method with endAt in the distant past
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now + BigInt(100), now + BigInt(100), 2, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [1n, 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected due to invalid endAt/startAt parameters.          
+    // Expect the transaction to be rejected because endAt is not in the future.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -127,7 +123,7 @@ describe("createVote", () => {
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 2, 100, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 2, 100, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -158,7 +154,7 @@ describe("createVote", () => {
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 1, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 1, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -189,7 +185,7 @@ describe("createVote", () => {
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 9, STAKE, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 9, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -197,38 +193,6 @@ describe("createVote", () => {
     });
 
     // Expect the transaction to be rejected due to invalid optionCount parameter.
-    await expect(atc.execute(algod, 4)).rejects.toThrow();
-  });
-
-  // Tests that createVote rejects when withdrawWindow is less than the minimum allowed (1 day),
-  // ensuring that voters have a reasonable amount of time to withdraw their stake after the vote ends.
-  it("rejects when withdrawWindow < minWithdrawWindow", async () => {
-    const { algod } = fixture.context;
-    const now = await latestTimestamp(fixture);
-    const suggestedParams = await algod.getTransactionParams().do();
-
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
-    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      sender: creator.addr,
-      receiver: appAddress,
-      amount: VOTE_BOX_MBR,
-      suggestedParams,
-    });
-
-    // Create an AtomicTransactionComposer to call the createVote method with withdrawWindow < minWithdrawWindow
-    // which should cause the contract to reject the transaction.
-    const atc = new algosdk.AtomicTransactionComposer();
-    atc.addMethodCall({
-      appID: appId,
-      method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 2, STAKE, 0, { txn: mbrPayment, signer: creator.signer }],
-      sender: creator.addr,
-      signer: creator.signer,
-      suggestedParams,
-      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
-    });
-
-    // Expect the transaction to be rejected due to invalid withdrawWindow parameter.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -252,7 +216,7 @@ describe("createVote", () => {
     atc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 2, 11_000_000, WITHDRAW_WINDOW, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 2, 11_000_000, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -263,34 +227,4 @@ describe("createVote", () => {
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
-  // Tests that createVote rejects when withdrawWindow is greater than the maximum allowed (1 year),
-  // ensuring that the contract enforces reasonable limits on how long voters can withdraw their stake after the vote ends.
-  it("rejects when withdrawWindow > MAX_WITHDRAW_WINDOW", async () => {
-    const { algod } = fixture.context;
-    const now = await latestTimestamp(fixture);
-    const suggestedParams = await algod.getTransactionParams().do();
-
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
-    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      sender: creator.addr,
-      receiver: appAddress,
-      amount: VOTE_BOX_MBR,
-      suggestedParams,
-    });
-
-    // Create an AtomicTransactionComposer to call the createVote method with withdrawWindow > MAX_WITHDRAW_WINDOW
-    const atc = new algosdk.AtomicTransactionComposer();
-    atc.addMethodCall({
-      appID: appId,
-      method: contract.getMethodByName("createVote"),
-      methodArgs: [now + DEFAULT_START_AT_OFFSET, now + DEFAULT_END_AT_OFFSET, 2, STAKE, 31_536_001, { txn: mbrPayment, signer: creator.signer }],
-      sender: creator.addr,
-      signer: creator.signer,
-      suggestedParams,
-      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
-    });
-
-    // Expect the transaction to be rejected due to invalid withdrawWindow parameter.
-    await expect(atc.execute(algod, 4)).rejects.toThrow();
-  });
 });

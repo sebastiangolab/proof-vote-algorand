@@ -16,26 +16,24 @@ export const UINT64_SIZE  = 8
 export const VOTE_BOX_PREFIX    = 0x76 // ASCII 'v'
 export const VOTE_BOX_NAME_SIZE = 9    // 1 + 8
 
-//  Box value layout (136B):
+//  Box value layout (128B):
 //    offset   0 : creator          Address   32B
-//    offset  32 : startAt          uint64     8B
-//    offset  40 : endAt            uint64     8B
-//    offset  48 : stake            uint64     8B
-//    offset  56 : withdrawDeadline uint64     8B
-//    offset  64 : optionCount      uint64     8B
-//    offset  72 : counts[0..7]     uint64[8] 64B
-export const VOTE_STATE_SIZE               = 136
+//    offset  32 : endAt            uint64     8B
+//    offset  40 : stake            uint64     8B
+//    offset  48 : withdrawDeadline uint64     8B
+//    offset  56 : optionCount      uint64     8B
+//    offset  64 : counts[0..7]     uint64[8] 64B
+export const VOTE_STATE_SIZE               = 128
 export const VOTE_CREATOR_OFFSET           = 0
-export const VOTE_START_AT_OFFSET          = 32
-export const VOTE_END_AT_OFFSET            = 40
-export const VOTE_STAKE_OFFSET             = 48
-export const VOTE_WITHDRAW_DEADLINE_OFFSET = 56
-export const VOTE_OPTION_COUNT_OFFSET      = 64
-export const VOTE_COUNTS_OFFSET            = 72
+export const VOTE_END_AT_OFFSET            = 32
+export const VOTE_STAKE_OFFSET             = 40
+export const VOTE_WITHDRAW_DEADLINE_OFFSET = 48
+export const VOTE_OPTION_COUNT_OFFSET      = 56
+export const VOTE_COUNTS_OFFSET            = 64
 
-//  VOTE_BOX_MBR: 2500 + 400 × (9 + 136) = 60,500 µALGO
+//  VOTE_BOX_MBR: 2500 + 400 × (9 + 128) = 57,300 µALGO
 //  Read formula above for details on how this is calculated.
-export const VOTE_BOX_MBR = 60500
+export const VOTE_BOX_MBR = 57300
 
 // ─── UserVoteState ────────────────────────────────────────────────────────────
 
@@ -61,10 +59,3 @@ export const USER_VOTE_STAKE_LOCKED_OFFSET = 9
 //  Read formula above for details on how this is calculated.
 export const USER_VOTE_BOX_MBR = 25700
 
-// ─── Withdrawal window ────────────────────────────────────────────────────────
-
-//  Minimum allowed withdrawal window in seconds (1 day).
-//  Prevents poll creators from setting withdrawWindow=0 which would make stakes
-//  immediately sweepable by the platform at vote end, trapping voters.
-export const MIN_WITHDRAW_WINDOW = 86400      // 1 day in seconds
-export const MAX_WITHDRAW_WINDOW = 31_536_000 // 1 year in seconds — prevents uint64 overflow of endAt + withdrawWindow

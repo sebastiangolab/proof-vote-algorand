@@ -5,7 +5,7 @@ import { deployContract, loadContract } from "./helpers/deploy";
 import { generateVoteBoxName, generateUserVoteBoxName, fetchUserVoteState } from "./helpers/boxes";
 import { latestTimestamp, forwardToAfterVotePhase, registerTimestampResetAfterEach } from "./helpers/time";
 import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "../src/constants";
-import { DEFAULT_START_AT_OFFSET, STAKE } from "./testConstants";
+import { STAKE } from "./testConstants";
 import { TestAccount } from "./types";
 
 // Provides an isolated Algorand sandbox environment (algod client, funded accounts) and resets
@@ -28,7 +28,7 @@ describe("sweepUser", () => {
     creator = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
     voter = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
 
-    ({ appId, appAddress } = await deployContract(algod, creator, { minStake: 100_000, minWithdrawWindow: 2 }));
+    ({ appId, appAddress } = await deployContract(algod, creator, { minStake: 100_000, defaultWithdrawWindow: 2 }));
     contract = loadContract();
   });
 
@@ -55,7 +55,7 @@ describe("sweepUser", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(100), 2, STAKE, 2, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(100), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -158,7 +158,7 @@ describe("sweepUser", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(2), 2, STAKE, 2, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(2), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -237,7 +237,7 @@ describe("sweepUser", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(2), 2, STAKE, 2, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(2), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -276,6 +276,13 @@ describe("sweepUser", () => {
   // Tests that sweeping is not allowed before the withdrawal deadline has passed.
   it("rejects sweep before withdrawal deadline", async () => {
     const { algod } = fixture.context;
+
+    // Deploy with a 1-year withdrawal window so deadline is far in the future when we try to sweep.
+    ({ appId, appAddress } = await deployContract(algod, creator, {
+      minStake: 100_000,
+      defaultWithdrawWindow: 31_536_000,
+    }));
+
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
@@ -295,7 +302,7 @@ describe("sweepUser", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(2), 2, STAKE, 31_536_000, { txn: mbrPayment, signer: creator.signer }],
+      methodArgs: [now + BigInt(2), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
@@ -349,7 +356,7 @@ describe("sweepUser", () => {
     createAtc.addMethodCall({
       appID: appId,
       method: contract.getMethodByName("createVote"),
-      methodArgs: [now - DEFAULT_START_AT_OFFSET, now + BigInt(10), 2, STAKE, 2, { txn: mbrPay, signer: creator.signer }],
+      methodArgs: [now + BigInt(10), 2, STAKE, { txn: mbrPay, signer: creator.signer }],
       sender: creator.addr,
       signer: creator.signer,
       suggestedParams,
