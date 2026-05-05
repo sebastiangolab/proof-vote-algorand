@@ -41,7 +41,7 @@ export function VoteForm({ voteId, options, stake, disabled, disabledReason }: P
       setSuccess(true);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Voting failed. Please try again.");
+      setError("Coś poszło nie tak, spróbuj jeszcze raz.");
     } finally {
       setSubmitting(false);
     }

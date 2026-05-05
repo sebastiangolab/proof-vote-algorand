@@ -76,7 +76,10 @@ export function CreateVoteForm() {
   useEffect(() => {
     fetchAppConfig()
       .then(setAppConfig)
-      .catch(() => setSubmitError("Failed to load platform config. Please refresh."));
+      .catch((err) => { 
+        console.error(err); 
+        setSubmitError("Coś poszło nie tak, spróbuj jeszcze raz.");
+      });
   }, []);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -181,7 +184,8 @@ export function CreateVoteForm() {
 
       router.push(`/votes/${slug}`);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Unexpected error");
+      console.error(err);
+      setSubmitError("Coś poszło nie tak, spróbuj jeszcze raz.");
     }
   }
 

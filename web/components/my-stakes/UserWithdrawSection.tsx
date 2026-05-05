@@ -41,7 +41,10 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
         if (!cancelled) setWithdrawTargets(withdrawTargets);
       })
       .catch((error) => {
-        if (!cancelled) setScanningError(error instanceof Error ? error.message : "Scan failed");
+        if (!cancelled) { 
+          console.error(error); 
+          setScanningError("Coś poszło nie tak, spróbuj jeszcze raz."); 
+        }
       })
       .finally(() => {
         if (!cancelled) setIsScanning(false);
@@ -89,7 +92,8 @@ function UserWithdrawSection({ address }: UserWithdrawSectionProps) {
         await atc.execute(algod, 4);
         setWithdrawDoneCount((prev) => prev + batch.length);
       } catch (err) {
-        errs.push(err instanceof Error ? err.message : "Batch failed");
+        console.error(err);
+        errs.push("Coś poszło nie tak, spróbuj jeszcze raz.");
         setWithdrawErrors([...errs]);
       }
     }

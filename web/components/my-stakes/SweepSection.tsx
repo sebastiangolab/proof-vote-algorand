@@ -40,7 +40,8 @@ function SweepSection({
     try {
       setTargets(await findEligibleSweeps());
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Scan failed");
+      console.error(err);
+      setScanError("Coś poszło nie tak, spróbuj jeszcze raz.");
     } finally {
       setScanning(false);
     }
@@ -76,7 +77,8 @@ function SweepSection({
         await atc.execute(algod, 4);
         setDone((d) => d + batch.length);
       } catch (err) {
-        errs.push(err instanceof Error ? err.message : "Batch failed");
+        console.error(err);
+        errs.push("Coś poszło nie tak, spróbuj jeszcze raz.");
         setSweepErrors([...errs]);
       }
     }
