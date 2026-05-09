@@ -23,10 +23,14 @@ jest.mock("@/lib/contract-client", () => ({
 
 // ─── Mock algorand ────────────────────────────────────────────────────────────
 
+const mockFetchAppConfig = jest.fn();
+
 jest.mock("@/lib/algorand", () => ({
   getAlgodClient: jest.fn(() => ({})),
-  fetchAppConfig: jest.fn().mockResolvedValue({ platformOwner: "PLATFORM0000000000000000000000000000000000000000000000000" }),
+  fetchAppConfig: (...args: unknown[]) => mockFetchAppConfig(...args),
   MICRO_ALGO: 1_000_000,
+  VOTE_BOX_MBR: 57_300n,
+  CREATE_VOTE_TX_FEE: 2_000n,
 }));
 
 // ─── Mock signatures ──────────────────────────────────────────────────────────
@@ -59,11 +63,16 @@ async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
 
 describe("CreateVoteForm", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockUseWallet.mockReturnValue({
       activeAddress: "CREATOR0000000000000000000000000000000000000000000000000",
       transactionSigner: mockTransactionSigner,
       signData: mockSignData,
+    });
+    mockFetchAppConfig.mockResolvedValue({
+      platformOwner: "PLATFORM0000000000000000000000000000000000000000000000000",
+      defaultStake: 1_000_000n,
+      defaultWithdrawWindow: 604_800n,
     });
   });
 
@@ -120,11 +129,13 @@ describe("CreateVoteForm", () => {
     mockBuildCreateVoteAtc.mockResolvedValue({ execute: mockExecute });
     mockSignData.mockResolvedValue({ signature: new Uint8Array(64) });
 
-    // Mock fetch
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ voteId: "1" }),
-    });
+    // Slug check returns 404 (slug not taken), then POST succeeds
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ voteId: "1" }),
+      });
 
     render(<CreateVoteForm />);
     await fillValidForm(user);
@@ -143,23 +154,25 @@ describe("CreateVoteForm", () => {
 
   it("shows submit error when API returns an error", async () => {
     const user = userEvent.setup();
-    const mockExecute = jest.fn().mockResolvedValue({
-      methodResults: [{ returnValue: 1n }],
+    mockBuildCreateVoteAtc.mockResolvedValue({
+      execute: jest.fn().mockResolvedValue({ methodResults: [{ returnValue: 1n }] }),
     });
-    mockBuildCreateVoteAtc.mockResolvedValue({ execute: mockExecute });
     mockSignData.mockResolvedValue({ signature: new Uint8Array(64) });
 
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      json: () => Promise.resolve({ error: "Duplicate slug" }),
-    });
+    // Slug check returns 404 (not taken), then POST fails
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: "Duplicate slug" }),
+      });
 
     render(<CreateVoteForm />);
     await fillValidForm(user);
     await user.click(screen.getByRole("button", { name: /create vote/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Duplicate slug");
+      expect(screen.getByRole("alert")).toHaveTextContent("Coś poszło nie tak, spróbuj jeszcze raz.");
     });
   });
 });

@@ -1,4 +1,3 @@
-import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VoteForm } from "./VoteForm";
@@ -26,6 +25,9 @@ const mockExecute = jest.fn();
 
 jest.mock("@/lib/algorand", () => ({
   getAlgodClient: jest.fn(() => ({})),
+  MICRO_ALGO: 1_000_000,
+  VOTE_TX_FEE: 2_000n,
+  USER_VOTE_BOX_MBR: 25_700n,
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -106,7 +108,7 @@ describe("VoteForm", () => {
     await user.click(screen.getByRole("button", { name: /submit vote/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Rejected by user");
+      expect(screen.getByRole("alert")).toHaveTextContent("Coś poszło nie tak, spróbuj jeszcze raz.");
     });
   });
 

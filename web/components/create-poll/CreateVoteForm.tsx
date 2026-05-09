@@ -118,6 +118,13 @@ export function CreateVoteForm() {
     setSubmitError(null);
 
     try {
+      const slugCheck = await fetch(`/api/votes/${encodeURIComponent(slug)}`);
+      
+      if (slugCheck.ok) {
+        setSubmitError("A poll with this title already exists. Please choose a different title.");
+        return;
+      }
+
       const appId = process.env.NEXT_PUBLIC_APP_ID ?? "";
 
       const nonEmptyOptions = values.options.map((option) => option.value.trim()).filter(Boolean);
