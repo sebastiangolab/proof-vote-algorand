@@ -22,13 +22,12 @@ describe("withdraw", () => {
   let contract: algosdk.ABIContract;
   let voteId: number;
 
-  // Helper: vote as `v` on `vid`
+  // Helper function to cast a vote, which is used in multiple tests to set up the state for testing withdrawals.
   async function castVote(v: TestAccount, vid: number, choice = 0): Promise<void> {
     const { algod } = fixture.context;
 
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment txn to cover the MBR for the UserVoteState box that will be created when voting
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: v.addr,
       receiver: appAddress,
@@ -36,7 +35,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method with the mbrPayment as an inner transaction to fund the UserVoteState box creation
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -70,9 +68,6 @@ describe("withdraw", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create poll */
-
-    // Create mbr payment txn to fund the VoteBox creation, which is required to create the poll.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -80,8 +75,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing the mbrPayment as an inner transaction to fund the VoteBox creation, 
-    // and specifying a withdraw window that is open for a sufficient time after the poll end time to allow for withdrawal in this test.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -96,23 +89,16 @@ describe("withdraw", () => {
 
     voteId = Number(result.methodResults[0].returnValue);
 
-    // Vote while poll is open
     await castVote(voter, voteId);
 
     await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'pollEnd');
 
-    /** Withdraw */
-
-    // Get voter balance before withdraw
     const voterAmountBefore = (await algod.accountInformation(voter.addr).do()).amount as bigint;
 
-    // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
     const withdrawSuggestedParams = await algod.getTransactionParams().do();
     withdrawSuggestedParams.flatFee = true;
-    // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
     withdrawSuggestedParams.fee = BigInt(2000);
 
-    // Create an AtomicTransactionComposer to call the withdraw method, passing the voteId and the required boxes.
     const withdrawAtc = new algosdk.AtomicTransactionComposer();
     withdrawAtc.addMethodCall({
       appID: appId,
@@ -149,11 +135,8 @@ describe("withdraw", () => {
     
     const now = await latestTimestamp(fixture);
 
-    /** Create poll */
-
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment to fund the VoteBox creation, which is required to create the poll.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -161,8 +144,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing the mbrPayment as an inner transaction to fund the VoteBox creation, 
-    // and specifying a withdraw window that is open for a sufficient time after the poll end time to allow for withdrawal in this test.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -176,17 +157,12 @@ describe("withdraw", () => {
     const result = await createAtc.execute(algod, 4);
     voteId = Number(result.methodResults[0].returnValue);
 
-    // Vote while poll is open
     await castVote(voter, voteId);
 
-    // Forward time to after the withdraw deadline by mining blocks
     await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'withdrawDeadline');
-
-    /** Withdraw */
 
     const withdrawSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the withdraw method, passing the voteId and the required boxes.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -201,7 +177,6 @@ describe("withdraw", () => {
       ],
     });
 
-    // Attempting to withdraw after the withdraw deadline should fail
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -210,11 +185,8 @@ describe("withdraw", () => {
     const { algod } = fixture.context;
     const now = await latestTimestamp(fixture);
 
-    /** Create poll */
-
     const suggestedParams = await algod.getTransactionParams().do();
     
-    // Create mbr payment to fund the VoteBox creation, which is required to create the poll.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -222,7 +194,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing the mbrPayment as an inner transaction to fund the VoteBox creation,
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -235,15 +206,10 @@ describe("withdraw", () => {
     });
     await createAtc.execute(algod, 4);
 
-    // Forward time to after the poll end (but still within the withdraw window) by mining blocks
     await forwardToAfterVotePhase(algod, appId, 1, creator, fixture, 'pollEnd');
-
-    /** Withdraw */
 
     const withdrawSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the withdraw method, passing the voteId and the required boxes. 
-    // The user did not vote, so they do not have a UserVoteState box, and the withdraw should fail.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -258,7 +224,6 @@ describe("withdraw", () => {
       ],
     });
 
-    // Expecting the withdraw to fail because the user did not vote and therefore does not have a UserVoteState box
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -268,11 +233,8 @@ describe("withdraw", () => {
     const { algod } = fixture.context;
     const now = await latestTimestamp(fixture);
 
-    /** Create poll */
-
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment to fund the VoteBox creation, which is required to create the poll.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -280,8 +242,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing the mbrPayment as an inner transaction to fund the VoteBox creation,
-    // and specifying a withdraw window that is open for a sufficient time after the poll end time to allow for withdrawal in this test.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -295,10 +255,8 @@ describe("withdraw", () => {
     const result = await createAtc.execute(algod, 4);
     voteId = Number(result.methodResults[0].returnValue);
 
-    // Vote while poll is open
     await castVote(voter, voteId);
 
-    // Forward time to after the poll end (but still within the withdraw window) by mining blocks
    await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'pollEnd');
 
     // Helper function to create and execute a withdraw transaction, which we will call twice to test
@@ -306,13 +264,10 @@ describe("withdraw", () => {
     const makeWithdrawAtc = async () => {
       const { algod: a } = fixture.context;
 
-      // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
       const withdrawSuggestedParams = await a.getTransactionParams().do();
       withdrawSuggestedParams.flatFee = true;
-      // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
       withdrawSuggestedParams.fee = BigInt(2000);
 
-      // Create an AtomicTransactionComposer to call the withdraw method, passing the voteId and the required boxes.
       const atc = new algosdk.AtomicTransactionComposer();
       atc.addMethodCall({
         appID: appId,
@@ -342,11 +297,9 @@ describe("withdraw", () => {
     const { algod } = fixture.context;
     const now = await latestTimestamp(fixture);
 
-    /** Create poll */
 
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment to fund the VoteBox creation, which is required to create the poll.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -354,8 +307,6 @@ describe("withdraw", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method, passing the mbrPayment as an inner transaction to fund the VoteBox creation,
-    // and specifying an endAt that is in the future so the poll is still active when we attempt to withdraw.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -368,15 +319,10 @@ describe("withdraw", () => {
     });
     await createAtc.execute(algod, 4);
 
-    // Cast a vote while the poll is open
     await castVote(voter, 1);
 
-    /** Withdrawal */
-
-    // Attempt to withdraw immediately — poll is still active (endAt not reached)
     const withdrawSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the withdraw method, passing the voteId and the required boxes.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -391,7 +337,6 @@ describe("withdraw", () => {
       ],
     });
 
-    // Expecting the withdraw to fail because the poll is still active (endAt not reached)
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -403,8 +348,6 @@ describe("withdraw", () => {
     // Attempt to withdraw using a voteId that does not exist
     const nonExistentVoteId = 9999;
 
-    // Create an AtomicTransactionComposer to call the withdraw method, 
-    // passing the non-existent voteId and the required boxes (which also won't exist).
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -419,7 +362,6 @@ describe("withdraw", () => {
       ],
     });
 
-    // Expecting the withdraw to fail because the voteId does not exist (no VoteState box, and consequently no UserVoteState box)
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 });

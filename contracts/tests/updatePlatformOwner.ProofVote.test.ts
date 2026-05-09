@@ -32,7 +32,6 @@ describe("updatePlatformOwner", () => {
     const newOwner = await generateAccount({ initialFunds: AlgoAmount.Algos(10), suppressLog: true });
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the updatePlatformOwner method, passing the new owner's address as an argument.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -51,7 +50,6 @@ describe("updatePlatformOwner", () => {
     );
     expect(ownerEntry).toBeDefined();
 
-    // The owner address is stored as bytes in global state, so we decode it back to an Algorand address string for comparison.
     const storedAddr = algosdk.encodeAddress(ownerEntry!.value.bytes);
     expect(storedAddr).toBe(newOwner.addr.toString());
   });
@@ -63,12 +61,9 @@ describe("updatePlatformOwner", () => {
     const target = await generateAccount({ initialFunds: AlgoAmount.Algos(10), suppressLog: true });
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
     suggestedParams.flatFee = true;
-    // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
-    suggestedParams.fee = BigInt(2000); 
+    suggestedParams.fee = BigInt(2000);
 
-    // Create an AtomicTransactionComposer to call the updatePlatformOwner method from a non-owner account, which should be rejected by the contract.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -78,7 +73,71 @@ describe("updatePlatformOwner", () => {
       signer: nonOwner.signer,
       suggestedParams,
     });
-    
+
     await expect(atc.execute(algod, 4)).rejects.toThrow();
+  });
+
+  // Tests the "invalid owner address" assertion: the zero address must be rejected as a new owner.
+  it("rejects when newOwner is the zero address", async () => {
+    const { algod } = fixture.context;
+    const suggestedParams = await algod.getTransactionParams().do();
+
+    const atc = new algosdk.AtomicTransactionComposer();
+    atc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("updatePlatformOwner"),
+      methodArgs: [algosdk.Address.zeroAddress()],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams,
+    });
+
+    await expect(atc.execute(algod, 4)).rejects.toThrow();
+  });
+
+  // Tests that after ownership is transferred, the new owner can call owner-only methods
+  // and the previous owner is rejected.
+  it("new owner can call owner-only methods; old owner cannot", async () => {
+    const { algod, generateAccount } = fixture.context;
+    const newOwner = await generateAccount({ initialFunds: AlgoAmount.Algos(10), suppressLog: true });
+
+    // Transfer ownership to newOwner
+    const transferParams = await algod.getTransactionParams().do();
+    const transferAtc = new algosdk.AtomicTransactionComposer();
+    transferAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("updatePlatformOwner"),
+      methodArgs: [newOwner.addr],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams: transferParams,
+    });
+    await transferAtc.execute(algod, 4);
+
+    // New owner successfully calls an owner-only method (disable)
+    const disableParams = await algod.getTransactionParams().do();
+    const disableAtc = new algosdk.AtomicTransactionComposer();
+    disableAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("disable"),
+      methodArgs: [],
+      sender: newOwner.addr,
+      signer: newOwner.signer,
+      suggestedParams: disableParams,
+    });
+    await expect(disableAtc.execute(algod, 4)).resolves.not.toThrow();
+
+    // Old owner is now rejected when calling an owner-only method
+    const oldOwnerParams = await algod.getTransactionParams().do();
+    const oldOwnerAtc = new algosdk.AtomicTransactionComposer();
+    oldOwnerAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("updatePlatformOwner"),
+      methodArgs: [creator.addr],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams: oldOwnerParams,
+    });
+    await expect(oldOwnerAtc.execute(algod, 4)).rejects.toThrow();
   });
 });

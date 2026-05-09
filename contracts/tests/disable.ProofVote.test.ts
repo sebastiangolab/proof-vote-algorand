@@ -8,8 +8,12 @@ import { VOTE_BOX_MBR, USER_VOTE_BOX_MBR } from "../src/constants";
 import { STAKE } from "./testConstants";
 import { TestAccount } from "./types";
 
+// Provides an isolated Algorand sandbox environment (algod client, funded accounts) and resets
+// blockchain state before each test via fixture.newScope, preventing test cross-contamination.
 const fixture = algorandFixture();
 beforeEach(fixture.newScope);
+
+// Resets blockchain timestamp to a fixed point after each test to ensure consistent time-based behavior across tests.
 registerTimestampResetAfterEach(() => fixture.context.algod);
 
 describe("disable", () => {
@@ -19,6 +23,7 @@ describe("disable", () => {
   let voter: TestAccount;
   let contract: algosdk.ABIContract;
 
+  // Deploys a fresh instance of the ProofVote contract before each test and initializes test accounts.
   beforeEach(async () => {
     const { algod, generateAccount } = fixture.context;
 
@@ -29,9 +34,11 @@ describe("disable", () => {
     contract = loadContract();
   });
 
+  // Helper function to call the disable method on the contract from a specified sender account.
   async function callDisable(sender: TestAccount): Promise<void> {
     const { algod } = fixture.context;
     const suggestedParams = await algod.getTransactionParams().do();
+
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -41,9 +48,11 @@ describe("disable", () => {
       signer: sender.signer,
       suggestedParams,
     });
+
     await atc.execute(algod, 4);
   }
 
+  // Helper function to create a new poll with a specified end time offset. Returns the created vote ID.
   async function createPoll(endOffset = BigInt(100)): Promise<number> {
     const { algod } = fixture.context;
     const now = await latestTimestamp(fixture);
@@ -183,6 +192,7 @@ describe("disable", () => {
     const withdrawSuggestedParams = await algod.getTransactionParams().do();
     withdrawSuggestedParams.flatFee = true;
     withdrawSuggestedParams.fee = BigInt(2000);
+
     const withdrawAtc = new algosdk.AtomicTransactionComposer();
     withdrawAtc.addMethodCall({
       appID: appId,
@@ -198,6 +208,20 @@ describe("disable", () => {
     });
 
     await expect(withdrawAtc.execute(algod, 4)).resolves.not.toThrow();
+  });
+
+  // Tests that the disabled global state key is set to 1 after calling disable.
+  it("sets disabled global state to 1", async () => {
+    const { algod } = fixture.context;
+    await callDisable(creator);
+
+    const appInfo = await algod.getApplicationByID(appId).do();
+    const disabledEntry = appInfo.params.globalState?.find(
+      (kv) => Buffer.from(kv.key).toString() === "disabled"
+    );
+    
+    expect(disabledEntry).toBeDefined();
+    expect(Number(disabledEntry!.value.uint)).toBe(1);
   });
 
   // Disabling the contract should not prevent the platform owner from sweeping unwithdrawn stakes after the withdraw deadline.

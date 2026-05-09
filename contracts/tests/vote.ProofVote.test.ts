@@ -14,7 +14,6 @@ const fixture = algorandFixture();
 beforeEach(fixture.newScope);
 registerTimestampResetAfterEach(() => fixture.context.algod);
 
-
 describe("vote", () => {
   let appId: number;
   let appAddress: string;
@@ -38,7 +37,6 @@ describe("vote", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment transaction for the vote box, which is required to create a vote.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -46,8 +44,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with endAt in the future
-    // so that voting is open immediately upon creation.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -61,7 +57,6 @@ describe("vote", () => {
 
     const result = await atc.execute(algod, 4);
 
-    // The createVote method returns the voteId, which we extract from the method results to use in our tests.
     voteId = Number(result.methodResults[0].returnValue);
   });
 
@@ -72,7 +67,6 @@ describe("vote", () => {
     const suggestedParams = await algod.getTransactionParams().do();
     const choice = 1;
 
-    // Create mbr payment transaction for the user vote box, which is required to vote.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: voter.addr,
       receiver: appAddress,
@@ -80,8 +74,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing the voteId, choice, and the payment transaction for the user vote box. 
-    // We also specify the vote box and user vote box as accounts to be accessed by the method.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -117,7 +109,6 @@ describe("vote", () => {
     const makeVoteAtc = async () => {
       const suggestedParams = await algod.getTransactionParams().do();
 
-      // Create mbr payment transaction for the user vote box, which is required to vote.
       const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
         sender: voter.addr,
         receiver: appAddress,
@@ -125,7 +116,6 @@ describe("vote", () => {
         suggestedParams,
       });
 
-      // Create an AtomicTransactionComposer to call the vote method, passing the voteId, choice, and the payment transaction for the user vote box.
       const atc = new algosdk.AtomicTransactionComposer();
       atc.addMethodCall({
         appID: appId,
@@ -163,7 +153,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing the voteId, choice, and the incorrect payment transaction for the user vote box. 
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -178,7 +167,6 @@ describe("vote", () => {
       ],
     });
 
-    // We expect the transaction to be rejected due to incorrect payment amount.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -197,7 +185,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing a non-existent voteId, choice, and the payment transaction for the user vote box.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -212,7 +199,6 @@ describe("vote", () => {
       ],
     });
 
-    // We expect the transaction to be rejected because the vote ID does not exist.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -224,7 +210,6 @@ describe("vote", () => {
     // The poll was created with optionCount = 3 (valid choices: 0, 1, 2), so choice = 3 is out of range.
     const invalidChoice = 3;
 
-    // Create mbr payment transaction for the user vote box, which is required to vote.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: voter.addr,
       receiver: appAddress,
@@ -232,8 +217,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing the valid voteId but an out-of-range choice index, 
-    // along with the payment transaction for the user vote box.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -248,7 +231,6 @@ describe("vote", () => {
       ],
     });
 
-    // We expect the transaction to be rejected because the choice index is out of range for the poll.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -257,7 +239,6 @@ describe("vote", () => {
     const { algod } = fixture.context;
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create mbr payment transaction for the user vote box, which is required to vote.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -265,8 +246,6 @@ describe("vote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, passing the voteId, choice, 
-    // and the payment transaction for the user vote box, but using the creator's account to attempt to vote on their own poll.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -281,8 +260,48 @@ describe("vote", () => {
       ],
     });
 
-    // We expect the transaction to be rejected because the creator of a poll is not allowed to vote on their own poll.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
+  });
+
+  // Tests that two voters casting votes on different choices each increment only their chosen option's count.
+  it("multiple voters for different choices accumulate counts independently", async () => {
+    const { algod, generateAccount } = fixture.context;
+    const voter2 = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
+
+    // Helper function to create and execute a vote transaction for a given voter and choice.
+    const makeVoteAtc = async (v: TestAccount, choice: number) => {
+      const suggestedParams = await algod.getTransactionParams().do();
+      const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        sender: v.addr,
+        receiver: appAddress,
+        amount: STAKE + USER_VOTE_BOX_MBR,
+        suggestedParams,
+      });
+
+      const atc = new algosdk.AtomicTransactionComposer();
+      atc.addMethodCall({
+        appID: appId,
+        method: contract.getMethodByName("vote"),
+        methodArgs: [voteId, choice, { txn: mbrPayment, signer: v.signer }],
+        sender: v.addr,
+        signer: v.signer,
+        suggestedParams,
+        boxes: [
+          { appIndex: 0, name: generateVoteBoxName(voteId) },
+          { appIndex: 0, name: generateUserVoteBoxName(voteId, v.addr) },
+        ],
+      });
+
+      return atc;
+    };
+
+    await (await makeVoteAtc(voter, 0)).execute(algod, 4);
+    await (await makeVoteAtc(voter2, 1)).execute(algod, 4);
+
+    const voteState = await fetchVoteState(algod, appId, voteId);
+    expect(voteState!.counts[0]).toBe(1n);
+    expect(voteState!.counts[1]).toBe(1n);
+    expect(voteState!.counts.slice(2).every((c) => c === 0n)).toBe(true);
   });
 
   // Tests that a user cannot vote after the poll has ended (after endAt), and that the contract correctly rejects the transaction.
@@ -292,8 +311,6 @@ describe("vote", () => {
     // Create a fresh app with a poll that ends in 60 seconds, then advance time past it.
     const expiredCreator = await generateAccount({ initialFunds: AlgoAmount.Algos(50), suppressLog: true });
     const { appId: expiredAppId, appAddress: expiredAppAddress } = await deployContract(algod, expiredCreator);
-
-    /** Create a poll with a near-future endAt */
 
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
@@ -319,12 +336,8 @@ describe("vote", () => {
     const result = await createAtc.execute(algod, 4);
     const expiredVoteId = Number(result.methodResults[0].returnValue);
 
-    // Advance time past the poll end
     await forwardToAfterVotePhase(algod, expiredAppId, expiredVoteId, expiredCreator, fixture, 'pollEnd');
 
-    /** Cast vote */
-
-    // Create mbr payment transaction for the user vote box, which is required to vote.
     const voteParams = await algod.getTransactionParams().do();
 
     const voteMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
@@ -348,7 +361,6 @@ describe("vote", () => {
       ],
     });
 
-    // We expect the transaction to be rejected because the poll has already ended (endAt has passed).
     await expect(voteAtc.execute(algod, 4)).rejects.toThrow();
   });
 });

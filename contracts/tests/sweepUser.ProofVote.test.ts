@@ -39,9 +39,6 @@ describe("sweepUser", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create Poll */
-
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method. 
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -49,8 +46,6 @@ describe("sweepUser", () => {
       suggestedParams,
     });
 
-    // Create a AtomicTransactionComposer to call the createVote method, which sets up a vote that the user can participate in. 
-    // The vote is configured with a short duration and withdrawal window to allow us to test the sweepUser functionality after the deadline has passed.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -66,12 +61,9 @@ describe("sweepUser", () => {
 
     const voteId = Number(result.methodResults[0].returnValue);
 
-    /** Cast Vote */
 
     const voteSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create a payment transaction to fund the user's vote, which includes both the stake and the MBR for the user vote box.
-    // This is required by the vote method.
     const voteMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: voter.addr,
       receiver: appAddress,
@@ -79,7 +71,6 @@ describe("sweepUser", () => {
       suggestedParams: voteSuggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, which allows the user to participate in the vote.
     const voteAtc = new algosdk.AtomicTransactionComposer();
     voteAtc.addMethodCall({
       appID: appId,
@@ -95,21 +86,15 @@ describe("sweepUser", () => {
     });
     await voteAtc.execute(algod, 4);
 
-    // Mine blocks until after the withdrawal deadline
     await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'withdrawDeadline');
 
-    /** Sweep User */
     
-    // Record creator's balance before the sweep to verify that it increases after receiving the swept stake and MBR funds.
     const amountBefore = (await algod.accountInformation(creator.addr).do()).amount as bigint;
 
-    // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
     const sweepSuggestedParams = await algod.getTransactionParams().do();
     sweepSuggestedParams.flatFee = true;
-    // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
     sweepSuggestedParams.fee = BigInt(2000); 
 
-    // Create an AtomicTransactionComposer to call the sweepUser method, which allows the platform owner to sweep the user's stake after the withdrawal deadline has passed.
     const sweepAtc = new algosdk.AtomicTransactionComposer();
     sweepAtc.addMethodCall({
       appID: appId,
@@ -125,12 +110,9 @@ describe("sweepUser", () => {
     });
     await sweepAtc.execute(algod, 4);
 
-    // Verify that the creator's balance has increased by at least the amount of the user's stake (and MBR), 
-    // confirming that the sweep was successful and the funds were transferred to the platform owner.
     const amountAfter = (await algod.accountInformation(creator.addr).do()).amount as bigint;
     expect(amountAfter).toBeGreaterThan(amountBefore);
 
-    // Verify that the user's vote box has been deleted by attempting to fetch the user's vote state and expecting it to be null.
     const userState = await fetchUserVoteState(algod, appId, voteId, voter.addr);
     expect(userState).toBeNull();
   });
@@ -142,9 +124,6 @@ describe("sweepUser", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create Poll */
-
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -152,8 +131,6 @@ describe("sweepUser", () => {
       suggestedParams,
     });
 
-    // Create a AtomicTransactionComposer to call the createVote method, which sets up a vote that the user can participate in. 
-    // The vote is configured with a short duration and withdrawal window to allow us to test the sweepUser functionality after the deadline has passed.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -166,11 +143,8 @@ describe("sweepUser", () => {
     });
     await createAtc.execute(algod, 4);
 
-    /** Sweep User */
-
     const sweepSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the sweepUser method from a non-owner account.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -185,7 +159,6 @@ describe("sweepUser", () => {
       ],
     });
 
-    // Expect the transaction to be rejected because the sender is not the platform owner.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -195,7 +168,6 @@ describe("sweepUser", () => {
     const { algod } = fixture.context;
     const sweepSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the sweepUser method with a voteId that does not exist (e.g., 999).
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -210,7 +182,6 @@ describe("sweepUser", () => {
       ],
     });
 
-    // Expect the transaction to be rejected because voteId 999 does not exist.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -221,9 +192,6 @@ describe("sweepUser", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create Poll */
-
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -231,8 +199,6 @@ describe("sweepUser", () => {
       suggestedParams,
     });
 
-    // Create a AtomicTransactionComposer to call the createVote method, which sets up a vote that the user can participate in. 
-    // The vote is configured with a short duration and withdrawal window to allow us to test the sweepUser functionality after the deadline has passed.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -247,14 +213,10 @@ describe("sweepUser", () => {
 
     const voteId = Number(result.methodResults[0].returnValue);
 
-    // Mine blocks until after the withdrawal deadline
     await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'withdrawDeadline');
-
-    /** Sweep User — nonVoter has no user box */
 
     const sweepSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the sweepUser method targeting a user who never voted (nonVoter), so no user box exists for them.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -269,7 +231,6 @@ describe("sweepUser", () => {
       ],
     });
 
-    // Expect the transaction to be rejected because nonVoter has no vote record.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -286,9 +247,6 @@ describe("sweepUser", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create Poll */
-
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -296,8 +254,6 @@ describe("sweepUser", () => {
       suggestedParams,
     });
 
-    // Create a AtomicTransactionComposer to call the createVote method, which sets up a vote that the user can participate in. 
-    // The vote is configured with a short duration and withdrawal window to allow us to test the sweepUser functionality before the deadline has passed.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -310,11 +266,8 @@ describe("sweepUser", () => {
     });
     await createAtc.execute(algod, 4);
 
-    /** Sweep User - try to sweep immediately, window still open */
-
     const sweepSuggestedParams = await algod.getTransactionParams().do();
 
-    // Create an AtomicTransactionComposer to call the sweepUser method before the withdrawal deadline has passed.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -329,7 +282,6 @@ describe("sweepUser", () => {
       ],
     });
 
-    // Expect the transaction to be rejected because the withdrawal deadline has not yet passed.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -340,9 +292,6 @@ describe("sweepUser", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    /** Create Poll */
-
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method.
     const mbrPay = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -350,8 +299,6 @@ describe("sweepUser", () => {
       suggestedParams,
     });
 
-    // Create a AtomicTransactionComposer to call the createVote method, which sets up a vote that the user can participate in. 
-    // The vote is configured with a short duration and withdrawal window to allow us to test the sweepUser functionality after the deadline has passed.
     const createAtc = new algosdk.AtomicTransactionComposer();
     createAtc.addMethodCall({
       appID: appId,
@@ -366,15 +313,10 @@ describe("sweepUser", () => {
 
     const voteId = Number(result.methodResults[0].returnValue);
 
-    /** Cast Vote */
-    
-    // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
     const voteSuggestedParams = await algod.getTransactionParams().do();
     voteSuggestedParams.flatFee = true;
-    // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
     voteSuggestedParams.fee = BigInt(2000);
     
-    // Create a MBR payment transaction to fund the vote box creation, which is required by the createVote method.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: voter.addr,
       receiver: appAddress,
@@ -382,7 +324,6 @@ describe("sweepUser", () => {
       suggestedParams: voteSuggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the vote method, which allows the user to participate in the vote.
     const voteAtc = new algosdk.AtomicTransactionComposer();
     voteAtc.addMethodCall({
       appID: appId,
@@ -398,21 +339,16 @@ describe("sweepUser", () => {
     });
     await voteAtc.execute(algod, 4);
 
-    // Mine blocks until after the withdrawal deadline
     await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'withdrawDeadline');
 
-    /** Sweep User - first sweep should succeed, second sweep should fail because the box is deleted after the first sweep */
 
     const makeSweepAtc = async () => {
       const { algod: a } = fixture.context;
 
-      // Set flat fee to ensure we know the exact fee amount for balance assertions (and to avoid fee fluctuations affecting the test)
       const sweepSuggestedParams = await a.getTransactionParams().do();
       sweepSuggestedParams.flatFee = true;
-      // 2000 microAlgos is a common fee for a 2-call transaction, but adjust as needed based on your network conditions
       sweepSuggestedParams.fee = BigInt(2000); 
 
-      // Create an AtomicTransactionComposer to call the sweepUser method, which allows the platform owner to sweep the user's stake after the withdrawal deadline has passed.
       const atc = new algosdk.AtomicTransactionComposer();
       atc.addMethodCall({
         appID: appId,
@@ -434,5 +370,84 @@ describe("sweepUser", () => {
 
     // Second sweep — box is gone → fails
     await expect((await makeSweepAtc()).execute(algod, 4)).rejects.toThrow();
+  });
+
+  // Tests that the platformOwner receives exactly STAKE + USER_VOTE_BOX_MBR minus the flat transaction fee.
+  // The existing success test only checked amountAfter > amountBefore.
+  it("sweeps exact STAKE + USER_VOTE_BOX_MBR minus fee to platformOwner", async () => {
+    const { algod } = fixture.context;
+    const now = await latestTimestamp(fixture);
+    const suggestedParams = await algod.getTransactionParams().do();
+
+    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: creator.addr,
+      receiver: appAddress,
+      amount: VOTE_BOX_MBR,
+      suggestedParams,
+    });
+
+    const createAtc = new algosdk.AtomicTransactionComposer();
+    createAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("createVote"),
+      methodArgs: [now + BigInt(100), 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams,
+      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
+    });
+    const createResult = await createAtc.execute(algod, 4);
+    
+    const voteId = Number(createResult.methodResults[0].returnValue);
+
+    const voteParams = await algod.getTransactionParams().do();
+    const voteMbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: voter.addr,
+      receiver: appAddress,
+      amount: STAKE + USER_VOTE_BOX_MBR,
+      suggestedParams: voteParams,
+    });
+
+    const voteAtc = new algosdk.AtomicTransactionComposer();
+    voteAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("vote"),
+      methodArgs: [voteId, 0, { txn: voteMbrPayment, signer: voter.signer }],
+      sender: voter.addr,
+      signer: voter.signer,
+      suggestedParams: voteParams,
+      boxes: [
+        { appIndex: 0, name: generateVoteBoxName(voteId) },
+        { appIndex: 0, name: generateUserVoteBoxName(voteId, voter.addr) },
+      ],
+    });
+
+    await voteAtc.execute(algod, 4);
+
+    await forwardToAfterVotePhase(algod, appId, voteId, creator, fixture, 'withdrawDeadline');
+
+    const amountBefore = (await algod.accountInformation(creator.addr).do()).amount as bigint;
+
+    const sweepParams = await algod.getTransactionParams().do();
+    sweepParams.flatFee = true;
+    sweepParams.fee = BigInt(2000);
+
+    const sweepAtc = new algosdk.AtomicTransactionComposer();
+    sweepAtc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("sweepUser"),
+      methodArgs: [voteId, voter.addr],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams: sweepParams,
+      boxes: [
+        { appIndex: 0, name: generateVoteBoxName(voteId) },
+        { appIndex: 0, name: generateUserVoteBoxName(voteId, voter.addr) },
+      ],
+    });
+    await sweepAtc.execute(algod, 4);
+
+    const amountAfter = (await algod.accountInformation(creator.addr).do()).amount as bigint;
+    expect(amountAfter).toBe(amountBefore + BigInt(STAKE) + BigInt(USER_VOTE_BOX_MBR) - 2000n);
   });
 });

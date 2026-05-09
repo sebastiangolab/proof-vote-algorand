@@ -19,7 +19,8 @@ describe("createVote", () => {
   let creator: TestAccount;
   let contract: algosdk.ABIContract;
 
-  // Generates a funded test account and deploys the ProofVote contract before each test
+  // Deploys the ProofVote contract and initializes the creator account before each test, 
+  // ensuring a fresh contract instance and clean state for every test case.
   beforeEach(async () => {
     const { algod, generateAccount } = fixture.context;
 
@@ -37,7 +38,6 @@ describe("createVote", () => {
     const optionCount = 3;
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -45,7 +45,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with the specified arguments and the MBR payment transaction.
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -80,7 +79,6 @@ describe("createVote", () => {
     const { algod } = fixture.context;
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -88,7 +86,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with endAt in the distant past
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -100,7 +97,6 @@ describe("createVote", () => {
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected because endAt is not in the future.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -110,7 +106,6 @@ describe("createVote", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -118,7 +113,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with STAKE < minStake
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -130,7 +124,6 @@ describe("createVote", () => {
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected due to invalid STAKE parameter.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -141,7 +134,6 @@ describe("createVote", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -149,7 +141,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with optionCount < 2
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -161,7 +152,6 @@ describe("createVote", () => {
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected due to invalid optionCount parameter.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -172,7 +162,6 @@ describe("createVote", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -180,7 +169,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with optionCount > 8
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -192,7 +180,6 @@ describe("createVote", () => {
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected due to invalid optionCount parameter.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
@@ -203,7 +190,6 @@ describe("createVote", () => {
     const now = await latestTimestamp(fixture);
     const suggestedParams = await algod.getTransactionParams().do();
 
-    // Create the MBR payment transaction to fund the vote box, which is required for createVote to succeed.
     const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: creator.addr,
       receiver: appAddress,
@@ -211,7 +197,6 @@ describe("createVote", () => {
       suggestedParams,
     });
 
-    // Create an AtomicTransactionComposer to call the createVote method with stake > maxStake
     const atc = new algosdk.AtomicTransactionComposer();
     atc.addMethodCall({
       appID: appId,
@@ -223,8 +208,103 @@ describe("createVote", () => {
       boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
     });
 
-    // Expect the transaction to be rejected due to invalid stake parameter.
     await expect(atc.execute(algod, 4)).rejects.toThrow();
   });
 
+  // Tests that createVote rejects when the MBR payment amount is one microAlgo short of the required VOTE_BOX_MBR.
+  // This covers the verifyPayTxn assertion inside createVote that checks the payment equals exactly VOTE_BOX_MBR.
+  it("rejects when MBR payment amount is wrong", async () => {
+    const { algod } = fixture.context;
+    const now = await latestTimestamp(fixture);
+    const suggestedParams = await algod.getTransactionParams().do();
+
+    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: creator.addr,
+      receiver: appAddress,
+      amount: VOTE_BOX_MBR - 1,
+      suggestedParams,
+    });
+
+    const atc = new algosdk.AtomicTransactionComposer();
+    atc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("createVote"),
+      methodArgs: [now + DEFAULT_END_AT_OFFSET, 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams,
+      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
+    });
+
+    await expect(atc.execute(algod, 4)).rejects.toThrow();
+  });
+
+  // Tests that the VoteState box stores creator, endAt, and withdrawDeadline correctly.
+  // The existing success test only verified optionCount, stake, and counts.
+  it("stores creator, endAt, and withdrawDeadline in VoteState", async () => {
+    const { algod } = fixture.context;
+    const now = await latestTimestamp(fixture);
+    const endAt = now + DEFAULT_END_AT_OFFSET;
+    const suggestedParams = await algod.getTransactionParams().do();
+
+    const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: creator.addr,
+      receiver: appAddress,
+      amount: VOTE_BOX_MBR,
+      suggestedParams,
+    });
+
+    const atc = new algosdk.AtomicTransactionComposer();
+    atc.addMethodCall({
+      appID: appId,
+      method: contract.getMethodByName("createVote"),
+      methodArgs: [endAt, 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
+      sender: creator.addr,
+      signer: creator.signer,
+      suggestedParams,
+      boxes: [{ appIndex: 0, name: generateVoteBoxName(1) }],
+    });
+    await atc.execute(algod, 4);
+
+    const voteState = await fetchVoteState(algod, appId, 1);
+    expect(voteState!.creator).toBe(creator.addr.toString());
+    expect(voteState!.endAt).toBe(endAt);
+    // withdrawDeadline = endAt + defaultWithdrawWindow
+    expect(voteState!.withdrawDeadline).toBe(endAt + 86_400n);
+  });
+
+  // Tests that the nextVoteId counter increments correctly so that a second poll receives voteId 2.
+  it("increments nextVoteId — second poll gets voteId 2", async () => {
+    const { algod } = fixture.context;
+    const now = await latestTimestamp(fixture);
+
+    const makeCreateAtc = async (voteBoxIdx: number) => {
+      const params = await algod.getTransactionParams().do();
+      const mbrPayment = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        sender: creator.addr,
+        receiver: appAddress,
+        amount: VOTE_BOX_MBR,
+        suggestedParams: params,
+      });
+
+      const atc = new algosdk.AtomicTransactionComposer();
+      atc.addMethodCall({
+        appID: appId,
+        method: contract.getMethodByName("createVote"),
+        methodArgs: [now + DEFAULT_END_AT_OFFSET, 2, STAKE, { txn: mbrPayment, signer: creator.signer }],
+        sender: creator.addr,
+        signer: creator.signer,
+        suggestedParams: params,
+        boxes: [{ appIndex: 0, name: generateVoteBoxName(voteBoxIdx) }],
+      });
+
+      return atc;
+    };
+
+    const result1 = await (await makeCreateAtc(1)).execute(algod, 4);
+    const result2 = await (await makeCreateAtc(2)).execute(algod, 4);
+
+    expect(Number(result1.methodResults[0].returnValue)).toBe(1);
+    expect(Number(result2.methodResults[0].returnValue)).toBe(2);
+  });
 });
