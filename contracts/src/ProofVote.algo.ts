@@ -25,6 +25,9 @@ class ProofVote extends Contract {
   /** Auto-incrementing poll ID counter; first poll gets ID 1 */
   nextVoteId = GlobalStateKey<uint64>();
 
+  /** 0 = active, 1 = disabled; blocks createVote and vote when set */
+  disabled = GlobalStateKey<uint64>();
+
   // ── Box Maps ───────────────────────────────────────────────────────────────
 
   /**
@@ -63,6 +66,7 @@ class ProofVote extends Contract {
     this.defaultWithdrawWindow.value = defaultWithdrawWindow;
     // Vote IDs start at 1 so that 0 can serve as a sentinel "unset" value
     this.nextVoteId.value = 1;
+    this.disabled.value = 0;
   }
 
   /**
@@ -83,6 +87,7 @@ class ProofVote extends Contract {
     stake: uint64,
     mbrPayment: PayTxn
   ): uint64 {
+    assert(!this.disabled.value, "contract is disabled");
     assert(endAt > globals.latestTimestamp, "endAt must be in the future");
     assert(optionCount >= 2, "at least 2 options required");
     assert(optionCount <= 8, "at most 8 options allowed");
@@ -129,6 +134,7 @@ class ProofVote extends Contract {
    * @param payment - PayTxn with amount = stake + USER_VOTE_BOX_MBR, receiver = contract address
    */
   vote(voteId: uint64, choice: uint64, payment: PayTxn): void {
+    assert(!this.disabled.value, "contract is disabled");
     assert(this.votes(voteId).exists, "vote does not exist");
 
     const voteState = this.votes(voteId).value;
@@ -220,6 +226,19 @@ class ProofVote extends Contract {
     assert(newOwner !== globals.zeroAddress, "invalid owner address");
 
     this.platformOwner.value = newOwner;
+  }
+
+  /**
+   * Disable the contract, blocking createVote and vote.
+   * withdraw and sweepUser remain callable so users can still reclaim funds.
+   * Only callable by platformOwner. Irreversible.
+   *
+   * @auth platformOwner only
+   */
+  disable(): void {
+    assert(this.txn.sender === this.platformOwner.value, "not platform owner")
+    
+    this.disabled.value = 1;
   }
 
   /**

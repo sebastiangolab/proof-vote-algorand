@@ -78,9 +78,8 @@ export async function deployContract(
     suggestedParams,
     approvalProgram,
     clearProgram,
-    // Global state: platformOwner (bytes=1), defaultStake/minStake/maxStake/defaultWithdrawWindow/nextVoteId (ints=5)
     numGlobalByteSlices: 1,
-    numGlobalInts: 5,
+    numGlobalInts: 6,
     numLocalByteSlices: 0,
     numLocalInts: 0,
     onComplete: algosdk.OnApplicationComplete.NoOpOC,

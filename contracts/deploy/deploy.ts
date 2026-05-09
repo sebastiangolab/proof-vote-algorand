@@ -138,7 +138,7 @@ async function deploy(): Promise<void> {
     approvalProgram,
     clearProgram,
     numGlobalByteSlices: 1,
-    numGlobalInts: 5,
+    numGlobalInts: 6,
     numLocalByteSlices: 0,
     numLocalInts: 0,
     onComplete: algosdk.OnApplicationComplete.NoOpOC,
