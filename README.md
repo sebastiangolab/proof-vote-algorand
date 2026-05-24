@@ -1,6 +1,6 @@
 # ProofVote
 
-On-chain polling platform built on Algorand. Create polls, vote with your wallet, and get your stake back after the poll ends. One wallet = one vote — enforced by the smart contract, not by a database.
+On-chain polling platform built on Algorand. Create polls, vote with your wallet, and get your stake back after the poll ends. One wallet = one vote — enforced by the smart contract.
 
 ---
 
@@ -18,8 +18,6 @@ On-chain polling platform built on Algorand. Create polls, vote with your wallet
 - [How It Works — Technical](#how-it-works--technical)
   - [On-chain interaction — ATC builder pattern](#on-chain-interaction--atc-builder-pattern)
   - [Off-chain authentication — signature verification](#off-chain-authentication--signature-verification)
-  - [Contract deployment](#contract-deployment--contractsdeploydeployts)
-- [Algorand Networks](#algorand-networks)
 - [Testing](#testing)
 - [Development Notes](#development-notes)
   - [Why BigInt instead of Number?](#why-bigint-instead-of-number)
@@ -29,7 +27,7 @@ On-chain polling platform built on Algorand. Create polls, vote with your wallet
 
 ## What is ProofVote?
 
-ProofVote is a polling platform where every vote requires a small, refundable deposit (called a **stake**). This deposit is locked by a smart contract on the Algorand blockchain and returned to you after the poll ends.
+ProofVote is a polling platform where every vote requires a small, refundable deposit (called a **stake**). This deposit — along with a tiny storage fee for your on-chain vote record — is locked by a smart contract on the Algorand blockchain and returned to you in full after the poll ends.
 
 **Why a deposit?**
 - It prevents spam and bot voting — creating hundreds of fake wallets costs real money
@@ -37,15 +35,14 @@ ProofVote is a polling platform where every vote requires a small, refundable de
 - It proves your vote was intentional
 
 **What happens to your money?**
-Your stake is never at risk of being lost or stolen. It is held by the smart contract — not by ProofVote, not by the poll creator — and returned to your wallet after voting ends. You have a 7-day window to claim it back. After that window, unclaimed stakes can be swept by the platform.
+Your stake is never at risk of being lost or stolen. It is held by the smart contract — not by ProofVote, not by the poll creator — and returned to your wallet after voting ends. The small storage deposit (MBR) paid when your vote record is created is also returned at the same time. You have a withdraw time window to claim both back. After that window, unclaimed funds can be swept by the platform.
 
 The one cost that is **not** refunded is the Algorand transaction fee: a flat ~0.001 ALGO per transaction. This is paid to the network validators, not to ProofVote, and applies to every Algorand transaction regardless of the app.
 
 **Why blockchain?**
-The vote counts and every individual vote record are stored directly on the Algorand blockchain. This means:
+Vote counts are stored directly on the Algorand blockchain and cannot be altered or deleted. This means:
 - Results are publicly verifiable by anyone — no trust required
-- Nobody can edit or delete vote records after they are cast
-- The rules are enforced by code, not by a company
+- Nobody can manipulate — votes can only be added, never removed or changed
 
 ---
 
@@ -66,13 +63,12 @@ proofvote/
 | Layer              | Technology                  | Rationale                                                          |
 | ------------------ | --------------------------- | ------------------------------------------------------------------ |
 | Smart contract     | TEALScript (Algorand AVM)   | Type-safe TS → TEAL; ARC-4/ARC-56 ABI out of the box               |
-| Monorepo tooling   | AlgoKit + npm workspaces    | Standard Algorand dev environment; contracts and web share types   |
 | Wallet integration | @txnlab/use-wallet-react v4 | Supports Pera, Defly, WalletConnect; handles signer plumbing       |
 | Frontend           | Next.js 16 (App Router)     | SSR for SEO on poll list; client components for wallet interaction |
 | UI components      | shadcn/ui + Tailwind CSS    | Accessible, composable; no runtime overhead                        |
-| Database ORM       | Prisma 6 + MySQL            | Type-safe queries; CyberFolks provides managed MySQL               |
+| Database ORM       | Prisma 6 + MySQL            | Type-safe queries; migrations via Prisma                          |
 | Validation         | Zod 4                       | Schema-first API validation with TypeScript inference              |
-| Rate limiting      | In-memory sliding window    | Simple; acceptable for low-traffic TestNet MVP                     |
+| Rate limiting      | In-memory sliding window    | Simple; no external dependency                                     |
 | Deployment         | Vercel                      | Zero-config Next.js; env vars via dashboard                        |
 
 ---
@@ -87,24 +83,19 @@ For developers new to blockchain or the Algorand ecosystem:
 | **ALGO** | Native cryptocurrency of Algorand. Used for transaction fees and staking. |
 | **microALGO (µALGO)** | Smallest unit of ALGO. 1 ALGO = 1,000,000 µALGO (like cents to a dollar). |
 | **Stake / deposit** | ALGO locked by the contract when you vote. Returned to you after the poll ends, within the withdrawal window. |
-| **Smart contract** | Self-executing code stored on the blockchain. In Algorand, compiled to TEAL bytecode. Nobody can modify the rules after deployment. |
+| **Smart contract** | Self-executing code stored on the blockchain. In Algorand, compiled to TEAL bytecode. Nobody can modify the rules after deployment, though data stored in the contract (boxes, state) can be created or deleted according to those rules. |
 | **TEAL** | Transaction Execution Approval Language — Algorand's smart contract language (low-level, assembly-like). |
-| **TEALScript** | TypeScript-to-TEAL compiler. Write contracts in TypeScript, compile to TEAL. Used in this project. |
+| **TEALScript** | TypeScript library that compiles to TEAL. Write smart contracts using TypeScript syntax and TEALScript's types/classes — the compiler transforms them into TEAL bytecode. |
 | **AVM** | Algorand Virtual Machine — executes TEAL bytecode on every node simultaneously. |
 | **ABI** | A JSON file generated at contract build time that describes its methods — what to call and with which arguments. |
 | **ARC-4** | Algorand standard that defines how to encode arguments into bytes when calling a contract. |
 | **Box storage** | Named on-chain key-value slots in Algorand contracts. Persistent between transactions; each box costs a small MBR deposit. |
 | **MBR** | Minimum Balance Requirement — ALGO locked when creating an account or a storage box. Acts like a refundable storage deposit; returned when the box is deleted. |
-| **Escrow** | A smart contract that holds funds on behalf of participants until predefined conditions are met. ProofVote's contract acts as an escrow for voter stakes. |
 | **Atomic group** | A set of transactions submitted together. Either all succeed or all are rejected — no partial execution. Prevents payment without contract call (and vice versa). |
 | **algod** | Algorand node daemon. Provides an HTTP API for reading blockchain state and submitting transactions. |
-| **Address** | 58-character string identifying an Algorand account (e.g., `MDV4NQNW6...Y4YVLDPLAY`). |
-| **Wallet** | App that stores private keys and signs transactions. Examples: Pera, Defly. |
+| **LocalNet** | A local Algorand node running on your machine (via AlgoKit). Instant finality, no real ALGO needed — used for development and contract testing. |
 | **TestNet** | A test network with free ALGO for development. Separate from MainNet; no real monetary value. |
 | **MainNet** | The production Algorand network. All ALGO has real monetary value. |
-| **Poll creator** | The wallet that called `createVote`. They set the parameters but have no special power over votes or funds once the poll is live. |
-| **Platform owner** | The address that deployed the contract. Can sweep unclaimed stakes after the withdrawal deadline, and transfer ownership. Cannot touch stakes during the withdrawal window. |
-| **Signer** | Wallet function that cryptographically signs a transaction or message with the user's private key. |
 
 ---
 
@@ -120,8 +111,8 @@ nvm use   # picks up .nvmrc automatically
 ```
 
 ```bash
-git clone <repo-url>
-cd proofvote
+git clone https://github.com/sebastiangolab/proof-vote-algorand.git
+cd proof-vote-algorand
 npm install
 ```
 
@@ -161,33 +152,94 @@ Both commands produce identical artifacts. The target network (LocalNet / TestNe
 
 ### 5. Deploy the contract
 
-**Before deploying to LocalNet** — start the local node first:
+Copy and fill in the contracts environment file:
+
+```bash
+cp contracts/.env.example contracts/.env
+```
+
+#### LocalNet
+
+Start the local node first:
+
 ```bash
 algokit localnet start
 ```
 
-**Before deploying to TestNet** — fund your deployer wallet with free test ALGO from the [dispenser](https://bank.testnet.algorand.network).
+Set in `contracts/.env`:
 
-> **MainNet warning:** deployment costs real ALGO. Only do this for production.
+```
+ALGOD_SERVER=http://localhost
+ALGOD_PORT=4001
+ALGOD_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+> **Getting a deployer mnemonic:** LocalNet ships with pre-funded accounts. Export a mnemonic from one of them:
+> ```bash
+> algokit goal account list                     # pick any address from the output
+> algokit goal account export -a <ADDRESS>      # prints the 25-word mnemonic
+> ```
+> Paste it as `DEPLOYER_MNEMONIC` in `contracts/.env`. No external wallet needed.
+>
+> **Platform owner features:** The deployer address automatically becomes `platformOwner` in the contract. If you want to use owner-only features in the web UI (e.g. the sweep panel in **My Refunds**), 
+> the platform owner key must be available in KMD so the wallet can sign those transactions. 
+> Using a KMD account as the deployer guarantees this — the account is already in KMD and will appear in the wallet picker.
+
+#### TestNet
+
+Fund your deployer wallet with free test ALGO from the [dispenser](https://bank.testnet.algorand.network), then set deployer mnemonic words in `contracts/.env`:
+
+```
+ALGOD_SERVER=https://testnet-api.algonode.cloud
+ALGOD_PORT=443
+ALGOD_TOKEN=
+DEPLOYER_MNEMONIC=<your 25-word wallet mnemonic>
+```
+
+Resources: 
+[Explorer](https://testnet.explorer.perawallet.app)
+[Dispenser](https://bank.testnet.algorand.network)
+
+Algod: `https://testnet-api.algonode.cloud`
+
+#### MainNet
+
+> **Warning:** deployment costs real ALGO. Only do this for production.
+
+Set in `contracts/.env`:
+
+```
+ALGOD_SERVER=https://mainnet-api.algonode.cloud
+ALGOD_PORT=443
+ALGOD_TOKEN=
+DEPLOYER_MNEMONIC=<your 25-word wallet mnemonic>
+```
+
+Run the deploy script:
 
 ```bash
-cp contracts/.env.example contracts/.env
-# Fill in DEPLOYER_MNEMONIC and set ALGOD_SERVER/ALGOD_PORT/ALGOD_TOKEN for the target network:
-#   TestNet  → ALGOD_SERVER=https://testnet-api.algonode.cloud  ALGOD_PORT=443
-#   MainNet  → ALGOD_SERVER=https://mainnet-api.algonode.cloud  ALGOD_PORT=443
-#   LocalNet → ALGOD_SERVER=http://localhost  ALGOD_PORT=4001 ALGOD_TOKEN=aaa...
-npm run build:contracts
-npm run deploy --workspace=contracts
+npm run deploy:contracts
 ```
 
-After a successful deploy, copy the printed values to `web/.env`:
+After a successful deploy, the script prints:
+```
+Deployer address : RZPP6...FNIQ
+APP_ID           : 123456789
+APP_ADDRESS      : ABCDE...XYZ
+```
+
+Copy the values to `web/.env`:
 ```
 NEXT_PUBLIC_APP_ID=<printed APP_ID>
-NEXT_PUBLIC_PLATFORM_OWNER_ADDRESS=<your deployer wallet address>
 NEXT_PUBLIC_ALGORAND_NETWORK=<testnet|mainnet|localnet>
+NEXT_PUBLIC_PLATFORM_OWNER_ADDRESS=<printed Deployer address>
 ```
 
 All variables are documented in [contracts/.env.example](contracts/.env.example).
+
+### Deployment costs
+
+Deploying requires approximately **~0.453 ALGO** upfront: ~0.103 ALGO in fees and seed payment (permanent), and ~0.35 ALGO locked as MBR in the deployer account.
 
 ### 6. Start the dev server
 
@@ -204,8 +256,12 @@ npm run dev              # Start Next.js dev server (web/)
 npm run build            # Production build (web/)
 npm run test             # Jest tests (web/)
 npm run build:contracts  # Compile TEALScript → TEAL + ABI JSON
+npm run deploy:contracts # Deploy the contract to the configured network
 npm run test:contracts   # Contract unit tests (requires LocalNet)
 npm run test:all         # contracts + web tests
+npm run lint             # ESLint (web/ + contracts/)
+npm run format           # Prettier — format all files
+npm run prisma:studio    # Open visual DB browser at http://localhost:5555
 ```
 
 ---
@@ -214,7 +270,7 @@ npm run test:all         # contracts + web tests
 
 ### Step 1 — Create a poll
 
-A poll creator submits a transaction to the smart contract specifying the question, options (2–8), and start/end time. They also pay a small deposit to reserve storage space on-chain. The required stake per vote and the withdrawal window are set globally by the platform and cannot be modified by the poll creator.
+A poll creator submits a transaction to the smart contract specifying the question, options (2–8), and end time. They also pay a small deposit to reserve storage space on-chain. The required stake per vote and the withdrawal window are set globally by the platform and cannot be modified by the poll creator.
 
 The contract assigns an auto-incrementing poll ID and stores everything in **box storage** (Algorand's persistent on-chain key-value store). The poll metadata — title, description, option labels — is stored off-chain in a database and linked to the on-chain poll by its ID.
 
@@ -228,7 +284,7 @@ To vote, a user submits two transactions together in a single atomic group:
 Each of the two transactions carries a standard Algorand network fee (~0.001 ALGO), so the total non-refundable cost is ~0.002 ALGO — paid to network validators, not to ProofVote.
 
 The contract checks:
-- Is the poll open (between `startAt` and `endAt`)?
+- Is the poll open (before `endAt`)?
 - Has this wallet already voted on this poll?
 - Is the payment amount exactly correct?
 
@@ -291,7 +347,7 @@ class Counter extends Contract {
 
 ### Global state — the contract's settings
 
-When the contract is deployed, six values are stored permanently on-chain:
+When the contract is deployed, seven values are stored permanently on-chain:
 
 | Key | What it is |
 |-----|-----------|
@@ -300,6 +356,7 @@ When the contract is deployed, six values are stored permanently on-chain:
 | `minStake` / `maxStake` | Allowed stake range (0.5–10 ALGO) |
 | `defaultWithdrawWindow` | Default refund window (7 days) |
 | `nextVoteId` | Auto-incrementing counter; first poll gets ID 1 |
+| `disabled` | 0 = active, 1 = disabled; set once by `platformOwner` — cannot be undone |
 
 These act like "factory settings" — they are set once at deployment and can only be changed by `platformOwner`.
 
@@ -307,97 +364,22 @@ These act like "factory settings" — they are set once at deployment and can on
 
 Each poll and each individual vote record is stored in its own **box** (a named slot in Algorand's on-chain storage). Think of boxes as labeled drawers in a filing cabinet:
 
-- **Poll box** — keyed by `voteId`, stores: creator address, start/end times, stake amount, withdrawal deadline, option count, and vote counts (one uint64 per option, up to 8)
-- **User vote box** — keyed by `(voteId, walletAddress)`, stores: voted flag, withdrawn flag, which option was chosen, and how much stake is locked
+- **Poll box** — keyed by `voteId`
+- **User vote box** — keyed by `(voteId, walletAddress)`
 
 Creating a box requires a small deposit (**MBR** — Minimum Balance Requirement), similar to a security deposit for renting a storage drawer. The deposit is returned when the box is deleted (on withdrawal or sweep).
-
-**Why box storage and not local state (the older approach in Algorand)?**
-Local state is stored inside each voter's own account record on-chain. Before interacting with the contract, every user would have to send a separate opt-in transaction to explicitly reserve that space in their account. Box storage works the other way around — data lives in the contract's account, keyed by arbitrary bytes (e.g. `voteId + walletAddress`). No per-user setup is needed: any wallet can vote in a single step.
 
 ### Contract methods in app
 
 | Method | Caller | Description |
 |--------|--------|-------------|
 | `createApplication(defaultStake, minStake, maxStake, defaultWithdrawWindow)` | Deployer | Initialize global state; deployer becomes `platformOwner` |
-| `createVote(startAt, endAt, optionCount, stake, withdrawWindow, mbrPayment)` | Anyone | Create a new poll; returns `voteId` |
+| `createVote(endAt, optionCount, stake, mbrPayment)` | Anyone | Create a new poll; returns `voteId` |
 | `vote(voteId, choice, payment)` | Any wallet | Cast a vote; must be in atomic group with PayTxn before AppCall |
 | `withdraw(voteId)` | Voter | Reclaim stake after poll ends (within withdrawal window) |
 | `sweepUser(voteId, user)` | `platformOwner` | Sweep unclaimed stake after the withdrawal deadline |
 | `updatePlatformOwner(newOwner)` | `platformOwner` | Transfer platform ownership to a new address |
-
-#### `createVote` — opens a new poll
-
-The contract validates the inputs before storing anything:
-
-```typescript
-// Reject bad parameters before writing anything to storage
-assert(endAt > startAt, "endAt must be after startAt");
-assert(optionCount >= 2, "at least 2 options required");
-assert(optionCount <= 8, "at most 8 options allowed");
-assert(stake >= this.minStake.value, "stake below minimum");
-assert(stake <= this.maxStake.value, "stake above maximum");
-assert(withdrawWindow >= MIN_WITHDRAW_WINDOW, "withdraw window too short");
-```
-
-After validation, it creates the poll box, assigns the next available ID, and returns it to the caller.
-
-#### `vote` — casts a vote and locks the stake
-
-One wallet, one vote — enforced by the box existence check:
-
-```typescript
-// A second vote from the same wallet is impossible —
-// the box already exists, and creating it again is rejected
-assert(!this.userVotes(userVoteKey).exists, "already voted");
-
-// The contract verifies the payment is exactly correct
-verifyPayTxn(payment, {
-  receiver: this.app.address,
-  amount: voteState.stake + USER_VOTE_BOX_MBR,
-});
-// Note: transaction fees (~0.001 ALGO per transaction) are NOT included in this amount.
-// Algorand deducts fees automatically from the sender's account balance — they never
-```
-
-After storing the vote record, it increments the vote count for the chosen option in the poll box. Rather than reading the entire poll record, modifying it, and writing it all back, only the relevant 8 bytes are updated — which is more efficient.
-
-#### `withdraw` — refunds the stake after the poll ends
-
-The caller can only withdraw within the withdrawal window, and only once:
-
-```typescript
-// Only allowed after the poll ends, before the deadline
-assert(globals.latestTimestamp >= voteState.endAt, "voting not ended");
-assert(globals.latestTimestamp <= voteState.withdrawDeadline, "withdrawal window closed");
-
-// Deleting the box is the double-withdrawal guard:
-// if the box doesn't exist, withdraw() will fail at the .exists check above.
-this.userVotes(userVoteKey).delete();
-
-// Refund: original stake + the storage deposit for the user box
-sendPayment({
-  receiver: this.txn.sender,
-  amount: stakeLocked + USER_VOTE_BOX_MBR,
-});
-```
-
-#### `sweepUser` — collects unclaimed stakes after the deadline
-
-Only `platformOwner` can call this, and only after the withdrawal window has closed:
-
-```typescript
-// Restricted to the platform operator
-assert(this.txn.sender === this.platformOwner.value, "not platform owner");
-// Can only run after users' self-withdrawal window has expired
-assert(globals.latestTimestamp > voteState.withdrawDeadline, "withdrawal window not closed");
-```
-
-This prevents the platform from sweeping funds while users still have the right to claim them.
-
-#### `updatePlatformOwner` — transfers ownership
-
-Transfers platform ownership to a new address. Only the current owner can call this.
+| `disable()` | `platformOwner` | Irreversibly disable the contract; blocks `createVote` and `vote` but leaves `withdraw` and `sweepUser` callable so users can recover funds |
 
 ---
 
@@ -413,9 +395,9 @@ Transfers platform ownership to a new address. Only the current owner can call t
                                          │                           │
                                   ┌──────▼───────┐          ┌────────▼───────┐
                                   │   Algorand   │          │  MySQL         │
-                                  │   TestNet    │          │  VoteMetadata  |
-                                  │  (algod via  │          │  (Prisma)      |
-                                  │   AlgoNode)  │          │                │
+                                  │  (algod via  │          │  VoteMetadata  |
+                                  │   AlgoNode)  │          │  (Prisma)      |
+                                  │              │          │                │
                                   └──────────────┘          └────────────────┘
 ```
 
@@ -426,23 +408,14 @@ On-chain storage is expensive and size-limited. The rule of thumb: store what mu
 - **On-chain (Algorand):** vote counts, stakes, wallet addresses, timestamps — the data that must be tamper-proof
 - **Off-chain (MySQL):** poll title, description, option labels, URL slug — readable text that doesn't need blockchain guarantees
 
-### Page rendering
-
-| Route | Strategy | Data source |
-|-------|----------|-------------|
-| `/` | Static | — |
-| `/votes` | SSR | Prisma |
-| `/votes/[slug]` | SSR meta + client on-chain | Prisma + algod |
-| `/create-poll` | Client | — |
-| `/my-stakes` | Client | algod |
-
 ---
 
 ## How It Works — Technical
 
 ### On-chain interaction — ATC builder pattern
 
-Every smart contract method has a corresponding builder function in `web/lib/contract-client.ts`. The `AtomicTransactionComposer` (ATC) groups the payment and the contract call into a single atomic group — if the contract call fails for any reason, the payment is also rolled back. No ALGO is lost.
+Every smart contract method has a corresponding builder function in `web/lib/contract-client.ts`. The `AtomicTransactionComposer` (ATC) groups the payment and the contract call into a single atomic group
+if the contract call fails for any reason, the payment is also rolled back. No ALGO is lost.
 
 Each builder function:
 
@@ -454,7 +427,7 @@ Each builder function:
 ```
 contract-client.ts          ProofVote contract (on-chain)
 ──────────────────          ─────────────────────────────
-buildCreateVoteAtc()   →    createVote(startAt, endAt, optionCount, stake, withdrawWindow, pay)
+buildCreateVoteAtc()   →    createVote(endAt, optionCount, stake, pay)
 buildVoteAtc()         →    vote(voteId, choice, pay)
 buildWithdrawAtc()     →    withdraw(voteId)
 buildBatchWithdrawAtc()→    withdraw(voteId) × N   (up to 16 in one atomic group)
@@ -472,7 +445,7 @@ Methods that read or write box storage must declare which boxes they'll access. 
 
 ### Off-chain authentication — signature verification
 
-Poll metadata (title, description, option labels, URL slug) is stored off-chain in MySQL and submitted to the Next.js API after the on-chain `createVote` call. Without authentication, anyone could register metadata for a voteId they didn't create.
+Poll metadata is stored off-chain in MySQL and submitted to the Next.js API after the on-chain `createVote` call. Without authentication, anyone could register metadata for a voteId they didn't create.
 
 **The problem:** the API cannot call algod to check "who created this vote" cheaply for every request.
 
@@ -509,88 +482,6 @@ The signature itself is **not stored** in the database — it is only used for t
 
 ---
 
-### Contract deployment — `contracts/deploy/deploy.ts`
-
-Deploys a fresh instance of the ProofVote contract to Algorand and prints the resulting `APP_ID`. Run once per environment (TestNet / MainNet).
-
-```
-contracts/
-├── artifacts/               ← generated by `npm run build:contracts` (gitignored)
-│   ├── ProofVote.approval.teal
-│   ├── ProofVote.clear.teal
-│   ├── ProofVote.arc32.json
-│   └── ProofVote.arc56.json
-└── deploy/
-    └── deploy.ts            ← this script
-```
-
-**Step-by-step flow:**
-
-1. **Load config from `.env`**
-   Reads `DEPLOYER_MNEMONIC`, `ALGOD_SERVER`, `ALGOD_PORT`, `ALGOD_TOKEN`. Aborts if the mnemonic is missing.
-
-2. **Check deployer balance**
-   Calls `algod.accountInformation()` and verifies the deployer has at least 0.5 ALGO. Minimum balance covers contract creation MBR and transaction fees.
-
-3. **Load TEAL from `artifacts/`**
-   Reads the pre-compiled `ProofVote.approval.teal` and `ProofVote.clear.teal` from disk. These files are produced by `npm run build:contracts` (TEALScript → TEAL).
-
-4. **Compile TEAL via algod**
-   Sends both source files to the algod `/compile` endpoint, which returns bytecode as base64. This must be done against the target network (TestNet/MainNet) because the opcode version is network-dependent.
-
-5. **Load the ABI contract** from `ProofVote.arc32.json`
-   Creates an `algosdk.ABIContract` and looks up the `createApplication` method by name.
-
-6. **Encode initial platform parameters** as ABI uint64 arguments:
-
-   | Parameter               | Default value       |
-   |-------------------------|---------------------|
-   | `defaultStake`          | 1 000 000 µALGO (1 ALGO) |
-   | `minStake`              | 500 000 µALGO       |
-   | `maxStake`              | 10 000 000 µALGO    |
-   | `defaultWithdrawWindow` | 604 800 s (7 days)  |
-
-   These are stored in the contract's global state and returned by `fetchAppConfig()` at runtime.
-
-7. **Build and execute the create transaction via ATC**
-   Uses `AtomicTransactionComposer.addMethodCall()` with `appID: 0` — this signals Algorand to create a new application. Declares the global state schema: 1 byte slice (`platformOwner`) + 5 integers.
-
-8. **Wait for confirmation and extract `APP_ID`**
-   Calls `algosdk.waitForConfirmation()`, then reads `confirmation["application-index"]` — the freshly assigned numeric ID of the deployed contract.
-
-9. **Output results**
-   Prints `APP_ID`, `APP_ADDRESS`, and the transaction ID to stdout. Writes the same data to `contracts/.deploy-result.json` for scripting/CI use.
-
-   ```
-   ✅ Contract deployed successfully
-      APP_ID      : 123456789
-      APP_ADDRESS : ABCDE...XYZ
-      Txn         : 3KPQR...ABC
-
-   Add to web/.env.local:
-     NEXT_PUBLIC_APP_ID=123456789
-   ```
-
-> **Re-deploying** creates a brand-new contract instance with a new `APP_ID`. There is no upgrade mechanism — existing votes live on the old contract forever.
-
----
-
-## Algorand Networks
-
-| Network      | When to use                                                              | Real ALGO? |
-| ------------ | ------------------------------------------------------------------------ | ---------- |
-| **mainnet**  | Production — real funds, real consequences. Use only for final launch.   | Yes        |
-| **testnet**  | Default for development. Free test ALGO from the dispenser. No real risk.| No         |
-| **localnet** | Fully offline, instant finality. Requires AlgoKit (`algokit localnet start`). | No    |
-
-### TestNet resources
-
-- Explorer: https://testnet.explorer.perawallet.app
-- Dispenser: https://bank.testnet.algorand.network
-- Algod (AlgoNode): https://testnet-api.algonode.cloud
-
----
-
 ## Testing
 
 ### Level 1 — Contract tests (requires LocalNet)
@@ -603,43 +494,89 @@ npm run build:contracts       # compile TEALScript → TEAL
 npm run test:contracts        # run contract unit tests
 ```
 
-What is tested in [contracts/tests/ProofVote.test.ts](contracts/tests/ProofVote.test.ts):
-
-- **createVote** — valid parameters succeed; invalid stake range, option count, and timing are rejected
-- **vote** — one-wallet-one-vote enforcement; out-of-range choice rejection; voting before/after window
-- **withdraw** — only after poll ends; only within the withdrawal window; correct refund amount; double-withdrawal rejected
-- **sweep** — only by platform owner; only after the withdrawal deadline; correct amount forwarded
-- **MBR payments** — each method verifies the attached payment equals the required amount exactly
-
 ### Level 2 — Web app tests
 
 ```bash
 npm run test           # Jest: unit + integration tests (web/)
 ```
 
-What is tested:
-
-- **API routes** — `POST /api/votes`: Zod validation, signature verification, rate limiting, duplicate detection
-- **Algorand decoders** — binary parsing of `VoteState` and `UserVoteState` from on-chain box data
-- **Signature verification** — `lib/signatures.ts` canonical message format and `algosdk.verifyBytes` integration
-- **Rate limiter** — sliding window logic, cleanup behavior (`lib/rateLimit.ts`)
-
 ### Level 3 — Manual testing
 
-**LocalNet** (recommended for development — offline, instant finality, no real ALGO needed):
+#### LocalNet
+
+Recommended for development — offline, instant finality, no real ALGO needed.
+
 1. `algokit localnet start`
-2. Deploy the contract to LocalNet (see [Step 4](#4-deploy-the-contract))
+2. Deploy the contract (see [Step 5 → LocalNet](#localnet-1))
 3. `npm run dev` → open http://localhost:3000
 4. Connect a wallet configured for LocalNet
 5. Create a poll → cast a vote → verify results in the LocalNet explorer
+6. Withdraw or sweep
 
-**TestNet** (closer to production — free test ALGO from the dispenser):
-1. `npm run dev` → open http://localhost:3000
-2. Connect a Pera or Defly wallet set to **TestNet**
-3. Get free TestNet ALGO from the [dispenser](https://bank.testnet.algorand.network)
-4. Create a poll → cast a vote → verify results in the [TestNet explorer](https://testnet.explorer.perawallet.app)
+#### TestNet
+
+Closer to production — free test ALGO from the dispenser, no real risk.
+
+1. Deploy the contract (see [Step 5 → TestNet](#testnet-1))
+2. `npm run dev` → open http://localhost:3000
+3. Connect a Pera or Defly wallet set to **TestNet**
+4. Get free TestNet ALGO from the [dispenser](https://bank.testnet.algorand.network)
+5. Create a poll → cast a vote → verify results in the [TestNet explorer](https://testnet.explorer.perawallet.app)
+6. Withdraw or sweep
+
+#### MainNet
+
+Production environment — real ALGO, real consequences. Follow the same steps as TestNet but use the MainNet deploy configuration (see [Step 5 → MainNet](#mainnet)) and switch your wallet to **MainNet**.
 
 > **Mock mode:** set `NEXT_PUBLIC_APP_ID=0` in `web/.env` to run the UI without a deployed contract. On-chain data is replaced with hardcoded fixtures; the database still works normally. Useful for frontend development and API route testing without deploying to any network.
+
+### Resetting between test runs (LocalNet)
+
+Different levels of reset depending on what you changed:
+
+#### 1. Reset only the chain (new LocalNet from scratch)
+
+Use when: you want a clean slate on-chain (new accounts, no old votes/apps), but haven't changed the contract code.
+
+```bash
+algokit localnet reset          # wipes all chain state and restarts LocalNet
+npm run deploy:contracts        # deploy a fresh contract instance
+```
+
+Then update `NEXT_PUBLIC_APP_ID` in `web/.env` with the new `APP_ID`.
+
+#### 2. Reset only the database (Prisma)
+
+Use when: the chain is fine, but the DB has stale vote records from a previous run (e.g. votes pointing to an old `APP_ID`).
+
+Open Prisma Studio and delete rows manually:
+```bash
+npm run prisma:studio            # opens http://localhost:5555
+```
+
+Or wipe all rows via the DB directly if you want a full clean state.
+
+#### 3. Rebuild the contract after code changes
+
+Use when: you edited `contracts/src/ProofVote.algo.ts` or any contract source.
+
+```bash
+npm run build:contracts          # recompile TEAL → artifacts/
+npm run deploy:contracts         # deploy the new version (new APP_ID!)
+```
+
+After redeploying, always update `NEXT_PUBLIC_APP_ID` in `web/.env`.
+
+#### Typical full reset sequence
+
+```bash
+algokit localnet reset
+npm run build:contracts
+npm run deploy:contracts
+# update web/.env with new APP_ID
+# clear DB records via prisma:studio if needed
+npm run dev
+```
 
 ---
 
