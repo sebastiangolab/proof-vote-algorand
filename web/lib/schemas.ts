@@ -31,10 +31,7 @@ export const CreateVoteMetadataSchema = z.object({
   creatorWallet: z.string().length(58, "creatorWallet must be a valid Algorand address (58 chars)"),
   /** Unix timestamp (seconds) when voting closes */
   endAt: z.string().regex(/^\d+$/, "endAt must be a numeric string").optional(),
-  /**
-   * Base64-encoded signature of the canonical creation message.
-   * Produced client-side with algosdk.signBytes.
-   */
+  /** Base64-encoded signed 0-ALGO self-payment transaction with the creation message as note. */
   signature: z.string().min(1, "signature is required"),
 });
 

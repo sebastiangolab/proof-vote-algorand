@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet, ScopeType } from "@txnlab/use-wallet-react";
+import { useWallet } from "@txnlab/use-wallet-react";
+import algosdk from "algosdk";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,7 +42,7 @@ type FormValues = z.input<typeof formSchema>;
 
 export function CreateVoteForm() {
   const router = useRouter();
-  const { activeAddress, transactionSigner, signData } = useWallet();
+  const { activeAddress, transactionSigner } = useWallet();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -159,12 +160,22 @@ export function CreateVoteForm() {
       // Sign the creation message to prove ownership of the creator wallet
       let signatureBase64: string = "localnet";
 
-      // On non-local networks, we require a signature to verify the creator's wallet ownership.
       if (!isLocalNet) {
         const message = buildCreationMessage(appId, voteId, slug);
-        const msgBase64 = Buffer.from(new TextEncoder().encode(message)).toString("base64");
-        const signResult = await signData(msgBase64, { scope: ScopeType.AUTH, encoding: "base64" });
-        signatureBase64 = Buffer.from(signResult.signature).toString("base64");
+        const suggestedParams = await algod.getTransactionParams().do();
+        suggestedParams.flatFee = true;
+        suggestedParams.fee = 0n;
+        
+        const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+          sender: activeAddress,
+          receiver: activeAddress,
+          amount: 0n,
+          note: new TextEncoder().encode(message),
+          suggestedParams,
+        });
+        
+        const [signedTxnBytes] = await transactionSigner([txn], [0]);
+        signatureBase64 = Buffer.from(signedTxnBytes).toString("base64");
       }
 
       // Send the vote details and signature to our backend for verification and storage

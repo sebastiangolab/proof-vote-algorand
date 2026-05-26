@@ -1,5 +1,8 @@
+/**
+ * @jest-environment node
+ */
 import algosdk from "algosdk";
-import { buildCreationMessage, verifyVoteCreationSignature } from "./signatures";
+import { buildCreationMessage, verifySignedTransactionProof } from "./signatures";
 
 // ─── buildCreationMessage ─────────────────────────────────────────────────────
 
@@ -17,55 +20,64 @@ describe("buildCreationMessage", () => {
   });
 });
 
-// ─── verifyVoteCreationSignature ──────────────────────────────────────────────
+// ─── verifySignedTransactionProof ─────────────────────────────────────────────
 
-describe("verifyVoteCreationSignature", () => {
-  // Generate a fresh account for each test suite run
+describe("verifySignedTransactionProof", () => {
   const account = algosdk.generateAccount();
   const address = account.addr.toString();
-
-  // Sign the canonical message for appId=123456789, voteId=1, "test-slug"
   const appId = "123456789";
   const voteId = "1";
   const slug = "test-slug";
   const message = buildCreationMessage(appId, voteId, slug);
-  const msgBytes = new TextEncoder().encode(message);
-  const sigBytes = algosdk.signBytes(msgBytes, account.sk);
-  const signature = Buffer.from(sigBytes).toString("base64");
 
-  it("returns true for a valid signature", () => {
-    expect(verifyVoteCreationSignature(appId, voteId, slug, address, signature)).toBe(true);
+  const suggestedParams = {
+    fee: 0n,
+    firstValid: 1n,
+    lastValid: 1001n,
+    genesisHash: Buffer.alloc(32, 1),
+    genesisID: "testnet-v1.0",
+    minFee: 1000n,
+  };
+
+  function makeSignedTxn(note: string, senderAccount = account) {
+    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: senderAccount.addr.toString(),
+      receiver: senderAccount.addr.toString(),
+      amount: 0n,
+      note: Buffer.from(note),
+      suggestedParams,
+    });
+    const signed = algosdk.signTransaction(txn, senderAccount.sk);
+    return Buffer.from(signed.blob).toString("base64");
+  }
+
+  it("returns true for a valid signed transaction proof", async () => {
+    const signedTxnBase64 = makeSignedTxn(message);
+    expect(await verifySignedTransactionProof(appId, voteId, slug, address, signedTxnBase64)).toBe(true);
   });
 
-  it("returns false when appId is different from what was signed", () => {
-    expect(verifyVoteCreationSignature("999999", voteId, slug, address, signature)).toBe(false);
+  it("returns false when note doesn't match expected message", async () => {
+    const signedTxnBase64 = makeSignedTxn("wrong message");
+    expect(await verifySignedTransactionProof(appId, voteId, slug, address, signedTxnBase64)).toBe(false);
   });
 
-  it("returns false when voteId is different from what was signed", () => {
-    expect(verifyVoteCreationSignature(appId, "99", slug, address, signature)).toBe(false);
+  it("returns false when appId is different from what was signed", async () => {
+    const signedTxnBase64 = makeSignedTxn(message);
+    expect(await verifySignedTransactionProof("999", voteId, slug, address, signedTxnBase64)).toBe(false);
   });
 
-  it("returns false when slug is different from what was signed", () => {
-    expect(verifyVoteCreationSignature(appId, voteId, "different-slug", address, signature)).toBe(false);
-  });
-
-  it("returns false for a wrong address (different key)", () => {
+  it("returns false when creatorWallet doesn't match the signer", async () => {
     const otherAccount = algosdk.generateAccount();
-    expect(
-      verifyVoteCreationSignature(appId, voteId, slug, otherAccount.addr.toString(), signature)
-    ).toBe(false);
+    const signedTxnBase64 = makeSignedTxn(message);
+    expect(await verifySignedTransactionProof(appId, voteId, slug, otherAccount.addr.toString(), signedTxnBase64)).toBe(false);
   });
 
-  it("returns false for an invalid base64 signature", () => {
-    expect(verifyVoteCreationSignature(appId, voteId, slug, address, "not-valid-sig!!")).toBe(false);
+  it("returns false for invalid base64 input", async () => {
+    expect(await verifySignedTransactionProof(appId, voteId, slug, address, "not!!valid!!base64")).toBe(false);
   });
 
-  it("returns false for a tampered (truncated) signature", () => {
-    const truncated = signature.slice(0, 10);
-    expect(verifyVoteCreationSignature(appId, voteId, slug, address, truncated)).toBe(false);
-  });
-
-  it("returns false for an invalid Algorand address", () => {
-    expect(verifyVoteCreationSignature(appId, voteId, slug, "NOTANADDRESS", signature)).toBe(false);
+  it("returns false for an invalid Algorand address", async () => {
+    const signedTxnBase64 = makeSignedTxn(message);
+    expect(await verifySignedTransactionProof(appId, voteId, slug, "NOTANADDRESS", signedTxnBase64)).toBe(false);
   });
 });

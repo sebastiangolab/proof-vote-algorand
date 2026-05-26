@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { CreateVoteMetadataSchema } from "@/lib/schemas";
-import { verifyVoteCreationSignature } from "@/lib/signatures";
+import { verifySignedTransactionProof } from "@/lib/signatures";
 import { isPrismaUniqueError, serializeVoteRecord } from "@/helpers/apiHelpers";
 
 // Pagination size for GET /api/votes
@@ -105,16 +105,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // 4. Verify creator's signature over the canonical creation message.
-  // Skip when NEXT_PUBLIC_ALGORAND_NETWORK=localnet (localnet dev — KMD lacks signData).
+  // Skip on localnet (dev/test — signature is placeholder "localnet").
   const isLocalnet = process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet";
   if (!isLocalnet) {
-    const sigValid = verifyVoteCreationSignature(
-      data.appId,
-      data.voteId,
-      data.slug,
-      data.creatorWallet,
-      data.signature
-    );
+    const sigValid = await verifySignedTransactionProof(data.appId, data.voteId, data.slug, data.creatorWallet, data.signature);
 
     if (!sigValid) {
       return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });

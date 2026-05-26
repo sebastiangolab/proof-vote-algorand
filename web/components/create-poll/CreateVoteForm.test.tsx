@@ -1,18 +1,26 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import algosdk from "algosdk";
 import { CreateVoteForm } from "./CreateVoteForm";
+
+const testAccount = algosdk.generateAccount();
+const TEST_ADDRESS = testAccount.addr.toString();
 
 // ─── Mock useWallet ────────────────────────────────────────────────────────────
 
-const mockSignData = jest.fn();
 const mockTransactionSigner = jest.fn();
 const mockUseWallet = jest.fn();
 
 jest.mock("@txnlab/use-wallet-react", () => ({
   useWallet: () => mockUseWallet(),
-  ScopeType: { AUTH: 1 },
 }));
+
+// Avoid algosdk's Uint8Array realm-check failing in JSDOM
+jest.mock("algosdk", () => {
+  const real = jest.requireActual<typeof import("algosdk")>("algosdk");
+  return { ...real, makePaymentTxnWithSuggestedParamsFromObject: jest.fn(() => ({})) };
+});
 
 // ─── Mock contract-client ─────────────────────────────────────────────────────
 
@@ -24,9 +32,10 @@ jest.mock("@/lib/contract-client", () => ({
 // ─── Mock algorand ────────────────────────────────────────────────────────────
 
 const mockFetchAppConfig = jest.fn();
+const mockGetAlgodClient = jest.fn();
 
 jest.mock("@/lib/algorand", () => ({
-  getAlgodClient: jest.fn(() => ({})),
+  getAlgodClient: (...args: unknown[]) => mockGetAlgodClient(...args),
   fetchAppConfig: (...args: unknown[]) => mockFetchAppConfig(...args),
   MICRO_ALGO: 1_000_000,
   VOTE_BOX_MBR: 57_300n,
@@ -65,9 +74,17 @@ describe("CreateVoteForm", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     mockUseWallet.mockReturnValue({
-      activeAddress: "CREATOR0000000000000000000000000000000000000000000000000",
+      activeAddress: TEST_ADDRESS,
       transactionSigner: mockTransactionSigner,
-      signData: mockSignData,
+    });
+    mockTransactionSigner.mockResolvedValue([new Uint8Array(64)]);
+    mockGetAlgodClient.mockReturnValue({
+      getTransactionParams: jest.fn(() => ({
+        do: jest.fn().mockResolvedValue({
+          fee: 0n, firstValid: 1n, lastValid: 1001n,
+          genesisHash: new Uint8Array(32).fill(1), genesisID: "testnet-v1.0", minFee: 1000n,
+        }),
+      })),
     });
     mockFetchAppConfig.mockResolvedValue({
       platformOwner: "PLATFORM0000000000000000000000000000000000000000000000000",
@@ -127,7 +144,6 @@ describe("CreateVoteForm", () => {
       methodResults: [{ returnValue: 1n }],
     });
     mockBuildCreateVoteAtc.mockResolvedValue({ execute: mockExecute });
-    mockSignData.mockResolvedValue({ signature: new Uint8Array(64) });
 
     // Slug check returns 404 (slug not taken), then POST succeeds
     global.fetch = jest.fn()
@@ -144,7 +160,7 @@ describe("CreateVoteForm", () => {
 
     await waitFor(() => {
       expect(mockBuildCreateVoteAtc).toHaveBeenCalled();
-      expect(mockSignData).toHaveBeenCalled();
+      expect(mockTransactionSigner).toHaveBeenCalled();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/votes",
         expect.objectContaining({ method: "POST" })
@@ -157,7 +173,6 @@ describe("CreateVoteForm", () => {
     mockBuildCreateVoteAtc.mockResolvedValue({
       execute: jest.fn().mockResolvedValue({ methodResults: [{ returnValue: 1n }] }),
     });
-    mockSignData.mockResolvedValue({ signature: new Uint8Array(64) });
 
     // Slug check returns 404 (not taken), then POST fails
     global.fetch = jest.fn()

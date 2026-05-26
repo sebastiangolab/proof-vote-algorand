@@ -17,15 +17,15 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 jest.mock("@/lib/signatures", () => ({
-  verifyVoteCreationSignature: jest.fn(),
+  verifySignedTransactionProof: jest.fn(),
 }));
 
 // Helpers to access mocked functions
 import { prisma } from "@/lib/prisma";
-import { verifyVoteCreationSignature } from "@/lib/signatures";
+import { verifySignedTransactionProof } from "@/lib/signatures";
 const mockCreate = prisma.voteMetadata.create as jest.Mock;
 const mockFindMany = prisma.voteMetadata.findMany as jest.Mock;
-const mockVerify = verifyVoteCreationSignature as jest.Mock;
+const mockVerify = verifySignedTransactionProof as jest.Mock;
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ function makeGetRequest(cursor?: string): NextRequest {
 beforeEach(() => {
   jest.clearAllMocks();
   _store.clear();
-  mockVerify.mockReturnValue(true);
+  mockVerify.mockResolvedValue(true);
   // Match VALID_BODY.appId so the appId check passes in happy-path tests
   process.env.NEXT_PUBLIC_APP_ID = "123456789";
 });
@@ -210,13 +210,13 @@ describe("POST /api/votes — appId validation", () => {
 
 describe("POST /api/votes — signature verification", () => {
   it("returns 401 when signature verification fails", async () => {
-    mockVerify.mockReturnValue(false);
+    mockVerify.mockResolvedValue(false);
     const response = await POST(makeRequest(VALID_BODY));
     expect(response.status).toBe(401);
   });
 
   it("does not call prisma.create when signature is invalid", async () => {
-    mockVerify.mockReturnValue(false);
+    mockVerify.mockResolvedValue(false);
     await POST(makeRequest(VALID_BODY));
     expect(mockCreate).not.toHaveBeenCalled();
   });

@@ -386,7 +386,7 @@ Creating a box requires a small deposit (**MBR** — Minimum Balance Requirement
 ## Architecture
 
 ```
-┌─────────────┐     sign txn / signData      ┌──────────────────┐
+┌─────────────┐        sign txn              ┌──────────────────┐
 │  Pera/Defly │ ◄──────────────────────────► │  Next.js (Vercel)│
 │   Wallet    │                              │  web/            │
 └─────────────┘                              └────────┬─────────┘
@@ -457,14 +457,13 @@ Poll metadata is stored off-chain in MySQL and submitted to the Next.js API afte
 │  Wallet      │ ◄─────────────────  │  (returns voteId)│
 └──────┬───────┘  2. voteId          └──────────────────┘
        │
-       │  3. wallet.signData("ProofVote: create metadata for appId=A voteId=N slug=Y")
-       │     → signature (base64)
+       │  3. sign a 0-ALGO self-payment with message as note
+       │     → signed transaction bytes (base64)
        │
        │  4. POST /api/votes  { voteId, slug, title, ..., creatorWallet, signature }
        ▼
-┌──────────────┐  5. verifyVoteCreationSignature(voteId, slug, creatorWallet, signature)
-│  Next.js API │     → algosdk.verifyBytes(msgBytes, sigBytes, address)
-│              │  6. if valid → INSERT into MySQL
+┌──────────────┐  5. verify Ed25519 signature (Web Crypto API)
+│  Next.js API │  6. if valid → INSERT into MySQL
 └──────────────┘     else → 401 Unauthorized
 ```
 
@@ -475,10 +474,11 @@ ProofVote: create metadata for appId=<A> voteId=<N> slug=<Y>
 
 The message binds the signature to a specific `(appId, voteId, slug)` triple. Replaying a signature for a different voteId, slug, or contract deployment will fail verification. Including `appId` prevents cross-deployment replay: a valid signature from one deployed instance cannot be reused against a re-deployed contract with a new App ID.
 
-**Domain separation (`MX` prefix)**
-`algosdk.verifyBytes` internally prepends `"MX"` to the message bytes before verification. This prevents a valid Algorand transaction signature from being reused as an arbitrary message signature — a standard protection against signature replay attacks across different contexts.
+**Signing method**
 
-The signature itself is **not stored** in the database — it is only used for the one-time ownership proof.
+The creator signs a 0-ALGO self-payment transaction with the canonical message in the `note` field. The transaction is **never submitted to the network** — it serves solely as a signing primitive that all wallets support. The backend decodes the signed transaction bytes and verifies the Ed25519 signature via the Web Crypto API.
+
+Neither the signature nor the transaction is stored in the database — they are used only for the one-time ownership proof.
 
 ---
 

@@ -122,7 +122,7 @@ export function ConnectWallet({ layout = "horizontal" }: ConnectWalletProps) {
             {wallets.map((wallet) => (
               <button
                 key={wallet.id}
-                onClick={() => { wallet.connect(); setOpen(false); }}
+                onClick={() => { wallet.connect().catch(() => {}); setOpen(false); }}
                 className="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3 text-left transition-colors hover:border-zinc-400 hover:bg-zinc-50"
               >
                 {wallet.metadata.icon && (

@@ -52,14 +52,14 @@ export function TestnetBanner() {
                   <p className="font-medium text-zinc-800">Pera Wallet</p>
 
                   <ol className="mt-1 list-decimal list-inside space-y-0.5 text-zinc-600">
-                    <li>Open Pera and tap the settings icon (⚙)</li>
+                    <li>Open Pera, open menu and tap the settings icon (⚙)</li>
 
                     <li>
                       Go to <span className="font-medium">Developer Settings</span>
                     </li>
 
                     <li>
-                      Select <span className="font-medium">Algorand Testnet</span>
+                      Set <span className="font-medium">Node Settings</span> to <span className="font-medium">TestNet</span>
                     </li>
                   </ol>
                 </div>
@@ -68,14 +68,14 @@ export function TestnetBanner() {
                   <p className="font-medium text-zinc-800">Defly Wallet</p>
 
                   <ol className="mt-1 list-decimal list-inside space-y-0.5 text-zinc-600">
-                    <li>Open Defly and tap your account avatar</li>
+                    <li>Open Defly and open more options in the navigation menu</li>
 
                     <li>
-                      Go to <span className="font-medium">Settings → Node Settings</span>
+                      Go to <span className="font-medium">Preferences → Advanced</span>
                     </li>
                     
                     <li>
-                      Select <span className="font-medium">Testnet</span>
+                      Set <span className="font-medium">Developer Mode</span> to enabled and restart the app
                     </li>
                   </ol>
                 </div>
