@@ -8,7 +8,6 @@ import algosdk from "algosdk";
  * The transaction is never submitted to the network — it serves only as a signing primitive.
  *
  * @param appId           - Contract application ID (as string)
- * @param voteId          - Vote ID (as string)
  * @param slug            - Vote slug
  * @param creatorWallet   - Expected signer's Algorand address (58-char base32)
  * @param signedTxnBase64 - Base64-encoded msgpack signed transaction bytes
@@ -17,7 +16,6 @@ import algosdk from "algosdk";
  */
 export async function verifySignedTransactionProof(
   appId: string,
-  voteId: string,
   slug: string,
   creatorWallet: string,
   signedTxnBase64: string
@@ -28,7 +26,7 @@ export async function verifySignedTransactionProof(
 
     if (!stxn.sig) return false;
 
-    const expectedMessage = buildCreationMessage(appId, voteId, slug);
+    const expectedMessage = buildCreationMessage(appId, slug);
     const note = stxn.txn.note ? new TextDecoder().decode(stxn.txn.note) : "";
     
     if (note !== expectedMessage) return false;
@@ -47,17 +45,17 @@ export async function verifySignedTransactionProof(
  * Builds the canonical message that a vote creator must sign before
  * submitting metadata to the API.
  *
- * Format: `ProofVote: create metadata for appId=A voteId=N slug=Y`
+ * Format: `ProofVote: create metadata for appId=A slug=Y`
  *
  * Including appId binds the signature to a specific contract deployment,
- * preventing cross-deployment replay attacks.
+ * preventing cross-deployment replay attacks. The slug is unique per app,
+ * so together they identify the vote without requiring the voteId.
  *
- * @param appId  - Contract application ID (numeric string)
- * @param voteId - Vote ID from the contract (numeric string or bigint string)
- * @param slug   - URL slug chosen for the vote
+ * @param appId - Contract application ID (numeric string)
+ * @param slug  - URL slug chosen for the vote
  * @returns Canonical message string
  */
-export function buildCreationMessage(appId: string, voteId: string, slug: string): string {
-  return `ProofVote: create metadata for appId=${appId} voteId=${voteId} slug=${slug}`;
+export function buildCreationMessage(appId: string, slug: string): string {
+  return `ProofVote: create metadata for appId=${appId} slug=${slug}`;
 }
 

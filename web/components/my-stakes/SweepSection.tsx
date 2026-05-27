@@ -6,6 +6,7 @@ import {
   findEligibleSweeps,
   getAlgodClient,
   MICRO_ALGO,
+  SWEEP_USER_TX_FEE,
   type SweepTarget,
 } from "@/lib/algorand";
 import { buildBatchSweepAtc, advanceLocalnetPast } from "@/lib/contract-client";
@@ -158,6 +159,14 @@ function SweepSection({
 
           {sweepTargets.length > 0 && !isSweepComplete && (
             <div className="px-6 py-4 space-y-3">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                Fee:{" "}
+                <span className="font-semibold">
+                  {Number(SWEEP_USER_TX_FEE * BigInt(sweepTargets.length)) / MICRO_ALGO} ALGO
+                </span>
+                {" "}({sweepTargets.length} × {Number(SWEEP_USER_TX_FEE) / MICRO_ALGO} ALGO fee)
+              </div>
+
               {sweepErrors.map((error, errorIndex) => (
                 <div
                   key={errorIndex}

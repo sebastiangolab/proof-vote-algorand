@@ -237,6 +237,29 @@ NEXT_PUBLIC_PLATFORM_OWNER_ADDRESS=<printed Deployer address>
 
 All variables are documented in [contracts/.env.example](contracts/.env.example).
 
+### Disabling the contract
+
+The `disable()` method permanently blocks new polls and votes while leaving `withdraw` and `sweepUser` callable so users can still recover their funds. **This action is irreversible.**
+
+Only the `platformOwner` can call it. The contract stores the deployer's address in global state at deploy time and checks `txn.sender === platformOwner` on every call — if the mnemonic in `DEPLOYER_MNEMONIC` doesn't match the original deployer, the transaction is rejected on-chain.
+
+Set `APP_ID` in `contracts/.env` (or pass it inline), then run:
+
+```bash
+APP_ID=<your_app_id> npm run disable:contracts
+```
+
+On success the script prints the transaction ID:
+
+```
+✅ Contract disabled. Txn: <txn_id>
+```
+
+After disabling:
+- `createVote` and `vote` are blocked for everyone
+- `withdraw` and `sweepUser` still work — users can always reclaim their funds
+- The `disabled` global state key is set to `1` on-chain and visible in any explorer
+
 ### Deployment costs
 
 Deploying requires approximately **~0.453 ALGO** upfront: ~0.103 ALGO in fees and seed payment (permanent), and ~0.35 ALGO locked as MBR in the deployer account.
@@ -256,7 +279,8 @@ npm run dev              # Start Next.js dev server (web/)
 npm run build            # Production build (web/)
 npm run test             # Jest tests (web/)
 npm run build:contracts  # Compile TEALScript → TEAL + ABI JSON
-npm run deploy:contracts # Deploy the contract to the configured network
+npm run deploy:contracts  # Deploy the contract to the configured network
+npm run disable:contracts # Permanently disable the contract (owner only)
 npm run test:contracts   # Contract unit tests (requires LocalNet)
 npm run test:all         # contracts + web tests
 npm run lint             # ESLint (web/ + contracts/)

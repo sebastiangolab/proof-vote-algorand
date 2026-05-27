@@ -8,14 +8,13 @@ import { buildCreationMessage, verifySignedTransactionProof } from "./signatures
 
 describe("buildCreationMessage", () => {
   it("produces the expected canonical format", () => {
-    const msg = buildCreationMessage("123456789", "42", "my-vote");
-    expect(msg).toBe("ProofVote: create metadata for appId=123456789 voteId=42 slug=my-vote");
+    const msg = buildCreationMessage("123456789", "my-vote");
+    expect(msg).toBe("ProofVote: create metadata for appId=123456789 slug=my-vote");
   });
 
-  it("includes all three parameters in the message", () => {
-    const msg = buildCreationMessage("999", "1", "alpha-poll");
+  it("includes both parameters in the message", () => {
+    const msg = buildCreationMessage("999", "alpha-poll");
     expect(msg).toContain("appId=999");
-    expect(msg).toContain("voteId=1");
     expect(msg).toContain("slug=alpha-poll");
   });
 });
@@ -26,9 +25,8 @@ describe("verifySignedTransactionProof", () => {
   const account = algosdk.generateAccount();
   const address = account.addr.toString();
   const appId = "123456789";
-  const voteId = "1";
   const slug = "test-slug";
-  const message = buildCreationMessage(appId, voteId, slug);
+  const message = buildCreationMessage(appId, slug);
 
   const suggestedParams = {
     fee: 0n,
@@ -53,31 +51,31 @@ describe("verifySignedTransactionProof", () => {
 
   it("returns true for a valid signed transaction proof", async () => {
     const signedTxnBase64 = makeSignedTxn(message);
-    expect(await verifySignedTransactionProof(appId, voteId, slug, address, signedTxnBase64)).toBe(true);
+    expect(await verifySignedTransactionProof(appId, slug, address, signedTxnBase64)).toBe(true);
   });
 
   it("returns false when note doesn't match expected message", async () => {
     const signedTxnBase64 = makeSignedTxn("wrong message");
-    expect(await verifySignedTransactionProof(appId, voteId, slug, address, signedTxnBase64)).toBe(false);
+    expect(await verifySignedTransactionProof(appId, slug, address, signedTxnBase64)).toBe(false);
   });
 
   it("returns false when appId is different from what was signed", async () => {
     const signedTxnBase64 = makeSignedTxn(message);
-    expect(await verifySignedTransactionProof("999", voteId, slug, address, signedTxnBase64)).toBe(false);
+    expect(await verifySignedTransactionProof("999", slug, address, signedTxnBase64)).toBe(false);
   });
 
   it("returns false when creatorWallet doesn't match the signer", async () => {
     const otherAccount = algosdk.generateAccount();
     const signedTxnBase64 = makeSignedTxn(message);
-    expect(await verifySignedTransactionProof(appId, voteId, slug, otherAccount.addr.toString(), signedTxnBase64)).toBe(false);
+    expect(await verifySignedTransactionProof(appId, slug, otherAccount.addr.toString(), signedTxnBase64)).toBe(false);
   });
 
   it("returns false for invalid base64 input", async () => {
-    expect(await verifySignedTransactionProof(appId, voteId, slug, address, "not!!valid!!base64")).toBe(false);
+    expect(await verifySignedTransactionProof(appId, slug, address, "not!!valid!!base64")).toBe(false);
   });
 
   it("returns false for an invalid Algorand address", async () => {
     const signedTxnBase64 = makeSignedTxn(message);
-    expect(await verifySignedTransactionProof(appId, voteId, slug, "NOTANADDRESS", signedTxnBase64)).toBe(false);
+    expect(await verifySignedTransactionProof(appId, slug, "NOTANADDRESS", signedTxnBase64)).toBe(false);
   });
 });

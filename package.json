@@ -19,6 +19,7 @@
     "build:contracts": "npm run build --workspace=contracts",
     "test:contracts": "npm run test --workspace=contracts",
     "deploy:contracts": "npm run deploy --workspace=contracts",
+    "disable:contracts": "npm run disable --workspace=contracts",
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspace=web",
     "test": "npm run test --workspace=web",

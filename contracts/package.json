@@ -7,6 +7,7 @@
     "build:no-algod": "tealscript --skip-algod src/ProofVote.algo.ts artifacts",
     "test": "jest --forceExit",
     "deploy": "ts-node deploy/deploy.ts",
+    "disable": "ts-node deploy/disable.ts",
     "lint": "eslint",
     "format": "prettier --write ."
   },

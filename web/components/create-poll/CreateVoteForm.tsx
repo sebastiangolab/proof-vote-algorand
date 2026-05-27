@@ -143,6 +143,30 @@ export function CreateVoteForm() {
         return;
       }
 
+      const algod = getAlgodClient();
+
+      // Sign the creation message FIRST to prove ownership of the creator wallet.
+      // Signing before the on-chain transaction ensures no ALGO is spent if the user cancels.
+      let signatureBase64: string = "localnet";
+
+      if (!isLocalNet) {
+        const message = buildCreationMessage(appId, slug);
+        const suggestedParams = await algod.getTransactionParams().do();
+        suggestedParams.flatFee = true;
+        suggestedParams.fee = 0n;
+
+        const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+          sender: activeAddress,
+          receiver: activeAddress,
+          amount: 0n,
+          note: new TextEncoder().encode(message),
+          suggestedParams,
+        });
+
+        const [signedTxnBytes] = await transactionSigner([txn], [0]);
+        signatureBase64 = Buffer.from(signedTxnBytes).toString("base64");
+      }
+
       // Create the vote on Algorand and get the resulting voteId
       const atc = await buildCreateVoteAtc({
         sender: activeAddress,
@@ -152,31 +176,8 @@ export function CreateVoteForm() {
         signer: transactionSigner,
       });
 
-      const algod = getAlgodClient();
       const result = await atc.execute(algod, 4);
-
       const voteId = String(result.methodResults[0].returnValue as bigint);
-
-      // Sign the creation message to prove ownership of the creator wallet
-      let signatureBase64: string = "localnet";
-
-      if (!isLocalNet) {
-        const message = buildCreationMessage(appId, voteId, slug);
-        const suggestedParams = await algod.getTransactionParams().do();
-        suggestedParams.flatFee = true;
-        suggestedParams.fee = 0n;
-        
-        const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-          sender: activeAddress,
-          receiver: activeAddress,
-          amount: 0n,
-          note: new TextEncoder().encode(message),
-          suggestedParams,
-        });
-        
-        const [signedTxnBytes] = await transactionSigner([txn], [0]);
-        signatureBase64 = Buffer.from(signedTxnBytes).toString("base64");
-      }
 
       // Send the vote details and signature to our backend for verification and storage
       const res = await fetch("/api/votes", {
@@ -347,7 +348,11 @@ export function CreateVoteForm() {
           )}
 
           <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-            Creation cost: <span className="font-semibold">{Number(VOTE_BOX_MBR + CREATE_VOTE_TX_FEE) / MICRO_ALGO} ALGO</span>
+            Creation cost:{" "}
+            <span className="font-semibold">{Number(VOTE_BOX_MBR) / MICRO_ALGO} ALGO</span>
+            {" + "}
+            <span className="font-semibold">{Number(CREATE_VOTE_TX_FEE) / MICRO_ALGO} ALGO</span>
+            {" fee"}
           </div>
 
           <button

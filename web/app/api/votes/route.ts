@@ -108,7 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Skip on localnet (dev/test — signature is placeholder "localnet").
   const isLocalnet = process.env.NEXT_PUBLIC_ALGORAND_NETWORK === "localnet";
   if (!isLocalnet) {
-    const sigValid = await verifySignedTransactionProof(data.appId, data.voteId, data.slug, data.creatorWallet, data.signature);
+    const sigValid = await verifySignedTransactionProof(data.appId, data.slug, data.creatorWallet, data.signature);
 
     if (!sigValid) {
       return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
