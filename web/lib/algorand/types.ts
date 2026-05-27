@@ -32,6 +32,7 @@ export type AppConfig = {
   minStake: bigint;              // µALGO minimum enforced by contract
   maxStake: bigint;              // µALGO maximum enforced by contract
   defaultWithdrawWindow: bigint; // seconds — suggested window shown in UI
+  disabled: boolean;             // true when platformOwner has called disable()
 };
 
 /**

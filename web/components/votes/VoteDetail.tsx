@@ -29,6 +29,7 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
 
   const [voteState, setVoteState] = useState<VoteState | null>(null);
   const [platformOwner, setPlatformOwner] = useState<string | null>(null);
+  const [contractDisabled, setContractDisabled] = useState(false);
   const [userVoted, setUserVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,6 +53,7 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
 
       setVoteState(voteStateData);
       setPlatformOwner(appConfig.platformOwner);
+      setContractDisabled(appConfig.disabled);
 
       if (activeAddress && voteStateData) {
         const userVoteState = await fetchUserVoteState(voteId, activeAddress);
@@ -171,13 +173,15 @@ export function VoteDetail({ metadata }: VoteDetailProps) {
                   voteId={voteId}
                   options={options}
                   stake={voteState.stake}
-                  disabled={userVoted || isCreator}
+                  disabled={contractDisabled || userVoted || isCreator}
                   disabledReason={
-                    isCreator
-                      ? "Poll creators cannot vote on their own polls."
-                      : userVoted
-                        ? "You have already voted."
-                        : undefined
+                    contractDisabled
+                      ? "Voting is currently disabled."
+                      : isCreator
+                        ? "Poll creators cannot vote on their own polls."
+                        : userVoted
+                          ? "You have already voted."
+                          : undefined
                   }
                 />
               </>

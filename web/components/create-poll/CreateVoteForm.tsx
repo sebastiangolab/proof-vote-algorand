@@ -338,6 +338,12 @@ export function CreateVoteForm() {
             <p className="text-sm text-zinc-500">Connect a wallet to create a vote.</p>
           )}
 
+          {appConfig?.disabled && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Creating polls is currently disabled.
+            </div>
+          )}
+
           {submitError && (
             <div
               className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -357,7 +363,7 @@ export function CreateVoteForm() {
 
           <button
             type="submit"
-            disabled={!mounted || !activeAddress || isSubmitting || !appConfig}
+            disabled={!mounted || !activeAddress || isSubmitting || !appConfig || appConfig.disabled}
             className="w-full rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? "Creating…" : "Create Vote →"}

@@ -65,6 +65,7 @@ export async function fetchAppConfig(): Promise<AppConfig> {
       minStake:             500_000n,
       maxStake:             10_000_000n,
       defaultWithdrawWindow: 7n * 24n * 3600n,
+      disabled:             false,
     };
   }
 
@@ -95,6 +96,7 @@ export async function fetchAppConfig(): Promise<AppConfig> {
     minStake:              getUint("minStake"),
     maxStake:              getUint("maxStake"),
     defaultWithdrawWindow: getUint("defaultWithdrawWindow"),
+    disabled:              getUint("disabled") === 1n,
   };
 }
 
