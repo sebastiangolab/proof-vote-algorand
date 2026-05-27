@@ -33,9 +33,9 @@ export async function verifySignedTransactionProof(
 
     const bytesToSign = stxn.txn.bytesToSign();
     const { publicKey } = algosdk.decodeAddress(creatorWallet);
-    const cryptoKey = await crypto.subtle.importKey("raw", publicKey, "Ed25519", false, ["verify"]);
-    
-    return await crypto.subtle.verify("Ed25519", cryptoKey, stxn.sig, bytesToSign);
+    const cryptoKey = await crypto.subtle.importKey("raw", publicKey as unknown as Uint8Array<ArrayBuffer>, "Ed25519", false, ["verify"]);
+
+    return await crypto.subtle.verify("Ed25519", cryptoKey, stxn.sig as unknown as Uint8Array<ArrayBuffer>, bytesToSign as unknown as Uint8Array<ArrayBuffer>);
   } catch {
     return false;
   }
