@@ -1,3 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && next build"
+  "framework": "nextjs",
+  "buildCommand": "npm run build:no-algod --workspace=contracts && cd web && npx prisma generate && next build",
+  "outputDirectory": "web/.next"
 }
