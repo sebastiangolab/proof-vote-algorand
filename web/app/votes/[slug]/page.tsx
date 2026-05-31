@@ -4,6 +4,8 @@ import { VoteDetail } from "@/components/votes/VoteDetail";
 import { PageLayout } from "@/components/PageLayout";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 // Next.js 16 dynamic route params are async
 type PageProps = {
   params: Promise<{ slug: string }>;

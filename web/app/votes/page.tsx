@@ -3,6 +3,8 @@ import { VoteList } from "@/components/votes/VoteList";
 import { PageLayout } from "@/components/PageLayout";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "All Votes — ProofVote",
 };
