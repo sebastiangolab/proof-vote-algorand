@@ -104,7 +104,7 @@ export function CreateVoteForm() {
 
   const { fields, append, remove } = useFieldArray({ control, name: "options" });
 
-  const slug = slugify(watch("title"), { lower: true, strict: true, trim: true }).slice(0, 80);
+  const slug = slugify(watch("title"), { lower: true, strict: true, trim: true }).slice(0, 60);
 
   function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
     return Promise.race([
