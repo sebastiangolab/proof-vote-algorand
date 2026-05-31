@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { buildCreateVoteAtc } from "@/lib/contract-client";
-import { getAlgodClient, fetchAppConfig, MICRO_ALGO, VOTE_BOX_MBR, CREATE_VOTE_TX_FEE, type AppConfig } from "@/lib/algorand";
+import { getAlgodClient, fetchAppConfig, fetchNextVoteId, MICRO_ALGO, VOTE_BOX_MBR, CREATE_VOTE_TX_FEE, type AppConfig } from "@/lib/algorand";
 import { buildCreationMessage } from "@/lib/signatures";
 import slugify from "slugify";
 import SectionLabel from "./FormSectionLabel";
@@ -84,6 +84,7 @@ export function CreateVoteForm() {
   }, []);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [waitingForWallet, setWaitingForWallet] = useState(false);
 
   const {
     register,
@@ -104,6 +105,19 @@ export function CreateVoteForm() {
   const { fields, append, remove } = useFieldArray({ control, name: "options" });
 
   const slug = slugify(watch("title"), { lower: true, strict: true, trim: true }).slice(0, 80);
+
+  function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+    ]);
+  }
+
+  function isUserRejection(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    
+    return msg.includes("reject") || msg.includes("cancel") || msg.includes("denied") || msg.includes("user");
+  }
 
   async function onSubmit(values: FormValues) {
     if (!activeAddress || !transactionSigner) {
@@ -145,38 +159,59 @@ export function CreateVoteForm() {
 
       const algod = getAlgodClient();
 
+      // Pre-fetch all blockchain data before any signing to minimise the gap
+      // between the proof signature and the createVote signing request.
+      // Mobile wallets (Pera, Defly) may fail to re-open if there is an async
+      // network round-trip between the two signing prompts.
+      const [txnParams, nextVoteId] = await Promise.all([
+        algod.getTransactionParams().do(),
+        fetchNextVoteId(),
+      ]);
+
       // Sign the creation message FIRST to prove ownership of the creator wallet.
       // Signing before the on-chain transaction ensures no ALGO is spent if the user cancels.
       let signatureBase64: string = "localnet";
 
       if (!isLocalNet) {
         const message = buildCreationMessage(appId, slug);
-        const suggestedParams = await algod.getTransactionParams().do();
-        suggestedParams.flatFee = true;
-        suggestedParams.fee = 0n;
 
         const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
           sender: activeAddress,
           receiver: activeAddress,
           amount: 0n,
           note: new TextEncoder().encode(message),
-          suggestedParams,
+          suggestedParams: { ...txnParams, flatFee: true, fee: 0n },
         });
 
-        const [signedTxnBytes] = await transactionSigner([txn], [0]);
+        setWaitingForWallet(true);
+        const [signedTxnBytes] = await withTimeout(
+          transactionSigner([txn], [0]),
+          90_000,
+          "TIMEOUT: Proof signing timed out. Please try again."
+        );
+        setWaitingForWallet(false);
         signatureBase64 = Buffer.from(signedTxnBytes).toString("base64");
       }
 
-      // Create the vote on Algorand and get the resulting voteId
+      // Create the vote on Algorand and get the resulting voteId.
+      // Pass pre-fetched params so buildCreateVoteAtc skips algod calls.
       const atc = await buildCreateVoteAtc({
         sender: activeAddress,
         endAt,
         optionCount: BigInt(nonEmptyOptions.length),
         stake: appConfig!.defaultStake,
         signer: transactionSigner,
+        txnParams,
+        nextVoteId,
       });
 
-      const result = await atc.execute(algod, 4);
+      setWaitingForWallet(true);
+      const result = await withTimeout(
+        atc.execute(algod, 4),
+        90_000,
+        "TIMEOUT: Transaction signing timed out. Please try again."
+      );
+      setWaitingForWallet(false);
       const voteId = String(result.methodResults[0].returnValue as bigint);
 
       // Send the vote details and signature to our backend for verification and storage
@@ -203,8 +238,15 @@ export function CreateVoteForm() {
 
       router.push(`/votes/${slug}`);
     } catch (err) {
+      setWaitingForWallet(false);
       console.error(err);
-      setSubmitError("Coś poszło nie tak, spróbuj jeszcze raz.");
+      if (isUserRejection(err)) {
+        setSubmitError("Transaction cancelled.");
+      } else if (err instanceof Error && err.message.startsWith("TIMEOUT:")) {
+        setSubmitError("Signing timed out — wallet did not respond in 90 seconds. Please try again.");
+      } else {
+        setSubmitError("Coś poszło nie tak, spróbuj jeszcze raz.");
+      }
     }
   }
 
@@ -366,7 +408,7 @@ export function CreateVoteForm() {
             disabled={!mounted || !activeAddress || isSubmitting || !appConfig || appConfig.disabled}
             className="w-full rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSubmitting ? "Creating…" : "Create Vote →"}
+            {waitingForWallet ? "Waiting for wallet…" : isSubmitting ? "Creating…" : "Create Vote →"}
           </button>
         </div>
       </div>

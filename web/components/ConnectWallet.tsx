@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useWallet } from "@txnlab/use-wallet-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 type ConnectWalletProps = {
@@ -114,8 +114,9 @@ export function ConnectWallet({ layout = "horizontal" }: ConnectWalletProps) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
+          <DialogHeader className="text-left">
             <DialogTitle>Connect a wallet</DialogTitle>
+            <DialogDescription>Select a wallet to connect to ProofVote.</DialogDescription>
           </DialogHeader>
 
           <div className="mt-2 flex flex-col gap-2">

@@ -95,15 +95,15 @@ export async function buildCreateVoteAtc(params: {
   optionCount: bigint;
   stake: bigint;
   signer: algosdk.TransactionSigner;
+  txnParams?: algosdk.SuggestedParams;
+  nextVoteId?: bigint;
 }): Promise<algosdk.AtomicTransactionComposer> {
   const algod = getAlgodClient();
   const appId = getAppId();
 
-  // Fetch nextVoteId and suggested params concurrently
-  const [txnParams, nextVoteId] = await Promise.all([
-    algod.getTransactionParams().do(),
-    fetchNextVoteId(),
-  ]);
+  const [txnParams, nextVoteId] = params.txnParams !== undefined && params.nextVoteId !== undefined
+    ? [params.txnParams, params.nextVoteId]
+    : await Promise.all([algod.getTransactionParams().do(), fetchNextVoteId()]);
 
   const atc = new algosdk.AtomicTransactionComposer();
 

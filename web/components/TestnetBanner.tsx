@@ -3,6 +3,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -25,6 +26,7 @@ export function TestnetBanner() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Getting started on Testnet</DialogTitle>
+              <DialogDescription>How to get free testnet ALGO and configure your wallet.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-5 text-sm text-zinc-700">
