@@ -1,4 +1,4 @@
-import { PrismaClient } from "./generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 // Singleton pattern to prevent multiple Prisma client instances in Next.js dev mode
 // (hot-reload creates new module instances; global persists across reloads)

@@ -16,9 +16,6 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/client", "prisma"],
   // Reduce Turbopack/webpack compilation scope for heavy packages — only
   // compiles the named exports actually used, instead of the entire library.
-  outputFileTracingIncludes: {
-    "/api/**": ["./lib/generated/prisma/**"],
-  },
   experimental: {
     optimizePackageImports: ["algosdk", "@txnlab/use-wallet-react", "@txnlab/use-wallet"],
   },
