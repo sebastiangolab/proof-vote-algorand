@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { VoteDetail } from "@/components/votes/VoteDetail";
@@ -11,26 +12,8 @@ type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-
-  const vote = await prisma.voteMetadata.findUnique({
-    where: { slug },
-    select: { title: true, description: true },
-  });
-
-  if (!vote) return { title: "Vote not found — ProofVote" };
-  
-  return {
-    title: `${vote.title} — ProofVote`,
-    description: vote.description ?? undefined,
-  };
-}
-
-export default async function VoteDetailPage({ params }: PageProps) {
-  const { slug } = await params;
-
-  const vote = await prisma.voteMetadata.findUnique({
+const getVote = cache((slug: string) =>
+  prisma.voteMetadata.findUnique({
     where: { slug },
     select: {
       voteId: true,
@@ -41,7 +24,25 @@ export default async function VoteDetailPage({ params }: PageProps) {
       appId: true,
       creatorWallet: true,
     },
-  });
+  })
+);
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const vote = await getVote(slug);
+
+  if (!vote) return { title: "Vote not found — ProofVote" };
+
+  return {
+    title: `${vote.title} — ProofVote`,
+    description: vote.description ?? undefined,
+  };
+}
+
+export default async function VoteDetailPage({ params }: PageProps) {
+  const { slug } = await params;
+
+  const vote = await getVote(slug);
 
   if (!vote) notFound();
 
